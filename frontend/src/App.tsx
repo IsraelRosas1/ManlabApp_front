@@ -1,0 +1,552 @@
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+
+type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
+
+type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
+
+type TabButtonProps = {
+  current: ScreenKey;
+  target: BottomNavKey;
+  label: string;
+  icon: ReactNode;
+  onNavigate: (screen: ScreenKey) => void;
+};
+
+type ShellButtonProps = {
+  children: ReactNode;
+  variant?: 'primary' | 'secondary';
+  fullWidth?: boolean;
+  type?: 'button' | 'submit';
+  onClick?: () => void;
+};
+
+const tabs: Array<{
+  key: BottomNavKey;
+  label: string;
+  icon: ReactNode;
+}> = [
+  {
+    key: 'reto',
+    label: 'Reto',
+    icon: <ClipboardIcon />, 
+  },
+  {
+    key: 'consejo',
+    label: 'Consejo',
+    icon: <BulbIcon />,
+  },
+  {
+    key: 'clon',
+    label: 'Clon',
+    icon: <ChatIcon />,
+  },
+  {
+    key: 'perfil',
+    label: 'Perfil',
+    icon: <UserIcon />,
+  },
+];
+
+const retoFrentes = [
+  { label: 'Intelectual', icon: <IdeaIcon />, checked: true },
+  { label: 'Espiritual', icon: <FeatherIcon />, checked: true },
+  { label: 'Físico', icon: <DumbbellIcon />, checked: false },
+  { label: 'Económico', icon: <DollarIcon />, checked: true },
+  { label: 'Social / Atracción', icon: <PeopleIcon />, checked: true },
+];
+
+const dailyTip = {
+  dayLabel: '3 de agosto',
+  cardNumber: '99',
+  body:
+    'La calle no perdona la teoría. Lo que sabes en la cabeza vale cero si no lo has probado en carne.',
+  author: 'MASTER',
+};
+
+const verdictText =
+  'Tres días sin pisar el gimnasio, y el resto del circuito ya lo siente. Tu economía se sostuvo, tu palabra con Dios se sostuvo — pero el cuerpo es la base, y una base que cede arrastra todo lo que construiste encima. No es cansancio. Es una decisión que estás tomando cada mañana que te quedas en la cama.';
+
+const chatPlaceholder = 'Escribe tu mensaje...';
+
+function getInitialScreen(): ScreenKey {
+  if (typeof window === 'undefined') {
+    return 'login';
+  }
+
+  const hash = window.location.hash.replace('#', '') as ScreenKey;
+  if (['login', 'reto', 'consejo', 'clon', 'perfil', 'veredicto'].includes(hash)) {
+    return hash;
+  }
+
+  return 'login';
+}
+
+function useScreen() {
+  const [screen, setScreen] = useState<ScreenKey>(getInitialScreen);
+
+  useEffect(() => {
+    const syncFromHash = () => setScreen(getInitialScreen());
+
+    if (!window.location.hash) {
+      window.location.hash = '#login';
+    }
+
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
+
+  useEffect(() => {
+    const titles: Record<ScreenKey, string> = {
+      login: 'ManLab · Acceso',
+      reto: 'ManLab · Reto',
+      consejo: 'ManLab · Consejo',
+      clon: 'ManLab · Clon',
+      perfil: 'ManLab · Perfil',
+      veredicto: 'ManLab · Veredicto',
+    };
+
+    document.title = titles[screen];
+  }, [screen]);
+
+  const navigate = (next: ScreenKey) => {
+    window.location.hash = `#${next}`;
+  };
+
+  return { screen, navigate };
+}
+
+export default function App() {
+  const { screen, navigate } = useScreen();
+
+  return (
+    <div className="app-shell">
+      <div className={`phone-frame phone-frame--${screen}`}>
+        {screen === 'login' ? (
+          <LoginScreen onEnter={() => navigate('reto')} onNavigate={navigate} />
+        ) : screen === 'reto' ? (
+          <RetoScreen onNavigate={navigate} />
+        ) : screen === 'consejo' ? (
+          <ConsejoScreen onNavigate={navigate} />
+        ) : screen === 'clon' ? (
+          <ClonScreen onNavigate={navigate} />
+        ) : screen === 'perfil' ? (
+          <PerfilScreen onNavigate={navigate} />
+        ) : (
+          <VeredictoScreen onBack={() => navigate('reto')} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({
+  onEnter,
+}: {
+  onEnter: () => void;
+  onNavigate: (screen: ScreenKey) => void;
+}) {
+  return (
+    <section className="screen screen--login">
+      <div className="login-mark" aria-hidden="true">
+        <div className="login-mark__ring">
+          <img src="/brand/manlab_dragon_dorado.svg" alt="" className="login-mark__logo" />
+        </div>
+      </div>
+
+      <div className="login-brand">
+        <h1>MANLAB</h1>
+        <p>HONOS · PROBITAS · PERFECTIO</p>
+      </div>
+
+      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); onEnter(); }}>
+        <label className="field">
+          <span>CORREO</span>
+          <input type="email" placeholder="tu@correo.com" autoComplete="email" />
+        </label>
+
+        <label className="field">
+          <span>CONTRASEÑA</span>
+          <input type="password" placeholder="••••••••" autoComplete="current-password" />
+        </label>
+
+        <ShellButton type="submit" variant="primary" fullWidth>
+          INICIAR SESIÓN
+        </ShellButton>
+      </form>
+
+      <p className="auth-linkline">
+        ¿Olvidaste tu contraseña? <button type="button" className="link-button">Enlace mágico</button>
+      </p>
+
+      <div className="login-separator" />
+
+      <p className="login-note">El acceso se activa al completar tu suscripción en manlabproject.com</p>
+    </section>
+  );
+}
+
+function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <section className="screen screen--stacked">
+      <header className="screen-header screen-header--with-metric">
+        <div>
+          <h2>DÍA 47 / 100</h2>
+          <p>EDICIÓN HIERRO</p>
+        </div>
+
+        <div className="metric">
+          <FlameIcon />
+          <span>12</span>
+        </div>
+      </header>
+
+      <div className="alert-pill">
+        <WarningIcon />
+        <span>Eslabón débil: Físico — 3 días cayendo</span>
+      </div>
+
+      <p className="section-kicker">LOS CINCO FRENTES</p>
+
+      <div className="fronts-list" role="list">
+        {retoFrentes.map((front) => (
+          <div className="front-row" key={front.label} role="listitem">
+            <div className="front-row__label">
+              <span className="front-row__icon">{front.icon}</span>
+              <span>{front.label}</span>
+            </div>
+
+            <div className={`front-row__state ${front.checked ? 'is-checked' : 'is-empty'}`}>
+              {front.checked ? <CheckIcon /> : <span />}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <label className="note-field">
+        <span className="sr-only">Bitácora de hoy</span>
+        <textarea placeholder="Bitácora de hoy..." rows={5} />
+      </label>
+
+      <blockquote className="doctrine-quote">
+        “Si trabajas diario es inevitable tener resultados; si no, es inevitable fracasar.”
+      </blockquote>
+
+      <ShellButton variant="primary" fullWidth onClick={() => onNavigate('veredicto')}>
+        PEDIR VEREDICTO AL CLON
+      </ShellButton>
+
+      <BottomNav current="reto" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function ConsejoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <section className="screen screen--stacked screen--tight-bottom">
+      <header className="screen-header">
+        <h2>CONSEJO DEL DÍA</h2>
+        <p>{dailyTip.dayLabel}</p>
+      </header>
+
+      <article className="tip-card">
+        <div className="tip-card__number">{dailyTip.cardNumber}</div>
+        <p className="tip-card__body">{dailyTip.body}</p>
+        <div className="tip-card__author">— {dailyTip.author}</div>
+      </article>
+
+      <div className="screen-spacer" />
+
+      <BottomNav current="consejo" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function VeredictoScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <section className="screen screen--stacked screen--veredicto">
+      <button type="button" className="back-button" onClick={onBack} aria-label="Volver al reto">
+        <ArrowLeftIcon />
+        <span>VEREDICTO</span>
+      </button>
+
+      <div className="tag-pill">Eslabón débil: Físico</div>
+
+      <p className="verdict-copy">{verdictText}</p>
+
+      <div className="doctrine-footer">HONOS · PROBITAS · PERFECTIO</div>
+
+      <ShellButton variant="secondary" fullWidth onClick={onBack}>
+        VOLVER AL RETO
+      </ShellButton>
+    </section>
+  );
+}
+
+function ClonScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <section className="screen screen--stacked screen--tight-bottom">
+      <header className="screen-header">
+        <h2>HABLA CON EL CLON</h2>
+        <p>Master AI</p>
+      </header>
+
+      <div className="clone-panel">
+        <ChatBubbleIcon />
+        <p>Embed de Delphi</p>
+        <span>(embed.delphi.ai)</span>
+        <small>se renderiza aquí</small>
+        <em>Solo visible si entitlement_status = active</em>
+      </div>
+
+      <div className="chat-composer">
+        <input type="text" placeholder={chatPlaceholder} aria-label="Escribe tu mensaje" />
+        <button type="button" aria-label="Enviar mensaje" className="send-button">
+          <SendIcon />
+        </button>
+      </div>
+
+      <BottomNav current="clon" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <section className="screen screen--stacked screen--tight-bottom">
+      <header className="profile-hero">
+        <div className="profile-hero__avatar">MH</div>
+        <div>
+          <h2>PERFIL</h2>
+          <p>Hombre en obra · T2</p>
+        </div>
+      </header>
+
+      <div className="profile-card profile-card--accent">
+        <span className="profile-card__eyebrow">Estado actual</span>
+        <strong>Acceso activo</strong>
+        <p>La suscripción desbloquea el Reto, el consejo, el Clon y el resto del muro.</p>
+      </div>
+
+      <div className="profile-grid">
+        <article className="profile-card">
+          <span className="profile-card__eyebrow">Racha</span>
+          <strong>12 días</strong>
+          <p>Máxima: 18</p>
+        </article>
+        <article className="profile-card">
+          <span className="profile-card__eyebrow">Rango</span>
+          <strong>T2</strong>
+          <p>Hombre en obra</p>
+        </article>
+      </div>
+
+      <div className="locked-stack">
+        <div className="locked-row">
+          <span>Fase 2</span>
+          <strong>Lector EPUB</strong>
+        </div>
+        <div className="locked-row">
+          <span>Fase 2</span>
+          <strong>Audiolibros</strong>
+        </div>
+        <div className="locked-row">
+          <span>Fase 3</span>
+          <strong>Videoteca · Hermandad</strong>
+        </div>
+      </div>
+
+      <BottomNav current="perfil" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <nav className="bottom-nav" aria-label="Navegación principal">
+      {tabs.map((tab) => (
+        <TabButton
+          key={tab.key}
+          current={current}
+          target={tab.key}
+          label={tab.label}
+          icon={tab.icon}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </nav>
+  );
+}
+
+function TabButton({ current, target, label, icon, onNavigate }: TabButtonProps) {
+  const active = current === target;
+
+  return (
+    <button
+      type="button"
+      className={`bottom-nav__item ${active ? 'is-active' : ''}`}
+      onClick={() => onNavigate(target)}
+      aria-current={active ? 'page' : undefined}
+    >
+      <span className="bottom-nav__icon">{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ShellButton({ children, variant = 'secondary', fullWidth, type = 'button', onClick }: ShellButtonProps) {
+  return (
+    <button
+      type={type}
+      className={`shell-button shell-button--${variant} ${fullWidth ? 'shell-button--full' : ''}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M9 4h6a2 2 0 0 1 2 2v1H7V6a2 2 0 0 1 2-2Z" />
+      <path d="M7 7h10v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7Z" />
+      <path d="M9 11h6M9 15h6" />
+    </SvgIcon>
+  );
+}
+
+function BulbIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M9 18h6" />
+      <path d="M10 21h4" />
+      <path d="M8 10a4 4 0 1 1 8 0c0 1.7-.8 3-2 4-.6.5-1 1.1-1 2h-2c0-.9-.4-1.5-1-2-1.2-1-2-2.3-2-4Z" />
+    </SvgIcon>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 5h16v10H9l-5 4V5Z" />
+      <path d="M8 9h8" />
+    </SvgIcon>
+  );
+}
+
+function UserIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </SvgIcon>
+  );
+}
+
+function IdeaIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M12 4a5 5 0 0 0-3 9v2h6v-2a5 5 0 0 0-3-9Z" />
+      <path d="M10 19h4" />
+    </SvgIcon>
+  );
+}
+
+function FeatherIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M19 5c-4 0-8 2-11 5-2 2-3 4-3 8 4 0 6-1 8-3 3-3 5-7 6-10Z" />
+      <path d="M5 19l6-6" />
+    </SvgIcon>
+  );
+}
+
+function DumbbellIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 10v4M8 8v8M16 8v8M20 10v4" />
+      <path d="M8 12h8" />
+    </SvgIcon>
+  );
+}
+
+function DollarIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M12 4v16" />
+      <path d="M15.5 8.5C15.5 7 14.2 6 12 6s-3.5 1-3.5 2.5S10 11 12 11s3.5 1.3 3.5 2.5S14.2 16 12 16s-3.5-1-3.5-2.5" />
+    </SvgIcon>
+  );
+}
+
+function PeopleIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+      <path d="M16 13a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+      <path d="M4 20a4 4 0 0 1 8 0" />
+      <path d="M13 20a3.5 3.5 0 0 1 7 0" />
+    </SvgIcon>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M12 5 3 19h18L12 5Z" />
+      <path d="M12 10v4" />
+      <path d="M12 16h.01" />
+    </SvgIcon>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M20 7 10 17l-5-5" />
+    </SvgIcon>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M13 3c1 4-1 5-1 7 0 2 2 3 2 5a4 4 0 1 1-8 0c0-2 1-3 2-4 1-2 0-4 1-6 1 1 2 3 4 3Z" />
+    </SvgIcon>
+  );
+}
+
+function ArrowLeftIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M15 18 9 12l6-6" />
+    </SvgIcon>
+  );
+}
+
+function ChatBubbleIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 5h16v11H9l-5 4V5Z" />
+      <path d="M8 10h8M8 13h5" />
+    </SvgIcon>
+  );
+}
+
+function SendIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M3 11.5 21 3l-6 18-3-7-9-2.5Z" />
+      <path d="M12 14 21 3" />
+    </SvgIcon>
+  );
+}
+
+function SvgIcon({ children, viewBox }: { children: ReactNode; viewBox: string }) {
+  return (
+    <svg viewBox={viewBox} aria-hidden="true" focusable="false">
+      {children}
+    </svg>
+  );
+}

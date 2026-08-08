@@ -1,0 +1,48 @@
+═══════════════════════════════════════════════════
+   MANLAB · EMBLEMA DRAGÓN (calavera + espada)
+   Kit transformable · Honos · Probitas · Perfectio
+═══════════════════════════════════════════════════
+
+OJO — ESTE LOGO ES DISTINTO AL "M + ESPADA"
+El logo M es de formas planas, perfecto para SVG puro.
+ESTE es una ILUSTRACIÓN a tinta con sombreado fino.
+Por eso lo entrego en DOS formatos, cada uno para un uso:
+
+  1) PNG TINTE (recomendado para casi todo)
+     Fondo transparente + TODO el sombreado conservado.
+     Recoloreas el trazo y mantienes el detalle de tinta.
+     Carpeta /PNG. Versiones: blanco, dorado, crema,
+     oro oscuro, negro (para fondos claros).
+     · _grande = máxima resolución (impresión/portadas)
+     · _1200   = web / redes
+
+  2) SVG LINE-ART (para escala gigante)
+     Vectorial: escala infinita sin pixelarse (lonas,
+     vallas, bordados, vinil de corte). Es line-art
+     PLANO de 1 color — no lleva el sombreado tonal.
+     Carpeta /SVG. Color editable igual que el otro kit.
+
+───────────────────────────────────────────────────
+¿CUÁL USO?
+───────────────────────────────────────────────────
+  • Story, post, portada, web, watermark .......... PNG
+  • Fondo oscuro .................. blanco / dorado / crema
+  • Fondo claro ................................... negro
+  • Lona enorme, vinil de corte, bordado, sello ... SVG
+  • Necesitas escala Y sombreado ......... PNG _grande
+
+───────────────────────────────────────────────────
+CAMBIAR DE COLOR
+───────────────────────────────────────────────────
+  PNG: ábrelo en Canva/Photoshop, aplica un "tinte" o
+       "color overlay"; como el sombreado vive en la
+       transparencia, cualquier color se ve elegante.
+  SVG: abre con Bloc de notas, cambia fill="#..." y
+       guarda. O recoloréalo en Illustrator/Canva.
+
+PALETA OFICIAL
+  Crema #F5F0E8 · Negro #0C0C0C · Oro #D4A857
+  Oro osc. #A47E38 · Gris #8C8780
+
+───────────────────────────────────────────────────
+¿OTRO COLOR / FORMATO?  Dime el HEX o el uso y lo armo.

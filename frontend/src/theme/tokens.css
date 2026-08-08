@@ -1,0 +1,55 @@
+/* ManLab — tokens de marca (§12). Tema oscuro por defecto.
+   Tipografías OFL incluidas en /public/fonts. */
+
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('/fonts/BebasNeue-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/CormorantGaramond-Variable.ttf') format('truetype');
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+:root {
+  /* Paleta */
+  --crema: #F5F0E8;
+  --negro: #0C0C0C;
+  --oro: #D4A857;
+  --oro-osc: #A47E38;
+  --gris: #8C8780;
+
+  /* Tipografías */
+  --font-impacto: 'Bebas Neue', sans-serif;   /* títulos */
+  --font-cuerpo: 'Inter', sans-serif;          /* UI / cuerpo */
+  --font-editorial: 'Cormorant Garamond', serif; /* display editorial */
+}
+
+html, body {
+  margin: 0;
+  background: var(--negro);
+  color: var(--crema);
+  font-family: var(--font-cuerpo);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-impacto); letter-spacing: .5px; }
+.acento { color: var(--oro); }
+.editorial { font-family: var(--font-editorial); }
+
+/* Cierre doctrinal reutilizable (T3) */
+.doctrina-cierre {
+  font-family: var(--font-editorial);
+  font-style: italic;
+  color: var(--oro-osc);
+  letter-spacing: 2px;
+}

@@ -1,0 +1,60 @@
+═══════════════════════════════════════════════════
+   MANLAB · KIT DE LOGO VECTORIAL TRANSFORMABLE
+   Honos · Probitas · Perfectio
+═══════════════════════════════════════════════════
+
+QUÉ ES UN SVG (lo importante)
+El logo ahora es VECTORIAL (.svg). Eso significa:
+  • Escala infinita sin pixelarse: úsalo en una story
+    o en una lona de 5 metros, siempre se ve nítido.
+  • El color se cambia en segundos.
+  • Fondo transparente nativo (sin recuadro negro).
+
+───────────────────────────────────────────────────
+ARCHIVOS INCLUIDOS
+───────────────────────────────────────────────────
+
+/SVG (vectorial — el formato maestro)
+  manlab_logo.svg          ← MAESTRO. Toma el color del
+                             texto/CSS (currentColor).
+                             Para diseñadores y web.
+  manlab_logo_blanco.svg   ← Blanco #FFFFFF
+  manlab_logo_negro.svg    ← Negro  #0C0C0C
+  manlab_logo_dorado.svg   ← Oro    #D4A857
+  manlab_logo_crema.svg    ← Crema  #F5F0E8
+
+/PNG (transparente — para apps que no leen SVG)
+  *_2000.png   alta resolución (impresión / portadas)
+  *_512.png    redes sociales / web
+
+───────────────────────────────────────────────────
+CÓMO CAMBIAR EL COLOR
+───────────────────────────────────────────────────
+
+OPCIÓN A — Editar el SVG (rápido, gratis):
+  1. Abre cualquier _color.svg con el Bloc de notas.
+  2. Busca fill="#FFFFFF" (o el color que sea).
+  3. Cámbialo por el hex que quieras. Guarda. Listo.
+
+OPCIÓN B — En Canva / Illustrator / Figma:
+  Sube el .svg, selecciona la forma y elige color con
+  el selector. (Canva lo deja recolorear si subes el
+  SVG como elemento.)
+
+OPCIÓN C — En web (manlab_logo.svg):
+  El maestro usa currentColor. Solo aplica color al
+  contenedor:  <div style="color:#D4A857"> ... </div>
+  y el logo se pinta de ese color automáticamente.
+
+───────────────────────────────────────────────────
+PALETA OFICIAL MANLAB (úsala siempre)
+───────────────────────────────────────────────────
+  Crema   #F5F0E8     Negro    #0C0C0C
+  Oro     #D4A857     Oro osc. #A47E38     Gris  #8C8780
+
+───────────────────────────────────────────────────
+NECESITAS OTRO COLOR / TAMAÑO / FORMATO
+───────────────────────────────────────────────────
+  Dime el HEX o el uso (ej. "dorado para watermark
+  semitransparente", "blanco para sticker", "versión
+  solo-emblema sin la palabra MANLAB") y te lo armo.

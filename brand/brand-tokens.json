@@ -1,0 +1,16 @@
+{
+  "palette": {
+    "crema": "#F5F0E8",
+    "negro": "#0C0C0C",
+    "oro": "#D4A857",
+    "oro_oscuro": "#A47E38",
+    "gris": "#8C8780"
+  },
+  "fonts": {
+    "impacto": "Bebas Neue",
+    "cuerpo": "Inter",
+    "editorial": "Cormorant Garamond"
+  },
+  "ui": { "default_theme": "dark", "accent": "oro", "accent_use": "moderado" },
+  "notes": "Cero estética de app de hábitos amable. Herramienta de estándar, sobria y seria. Reglas de copy: docs/SPEC §11."
+}
