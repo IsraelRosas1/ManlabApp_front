@@ -145,6 +145,42 @@ function LoginScreen({
   onEnter: () => void;
   onNavigate: (screen: ScreenKey) => void;
 }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+      const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo iniciar sesión.');
+      }
+
+      onEnter();
+    } catch {
+      setErrorMessage('Correo o contraseña inválidos.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <section className="screen screen--login">
       <div className="login-mark" aria-hidden="true">
@@ -158,19 +194,35 @@ function LoginScreen({
         <p>HONOS · PROBITAS · PERFECTIO</p>
       </div>
 
-      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); onEnter(); }}>
+      <form className="auth-form" onSubmit={handleLogin}>
         <label className="field">
           <span>CORREO</span>
-          <input type="email" placeholder="tu@correo.com" autoComplete="email" />
+          <input
+            type="email"
+            placeholder="tu@correo.com"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
         </label>
 
         <label className="field">
           <span>CONTRASEÑA</span>
-          <input type="password" placeholder="••••••••" autoComplete="current-password" />
+          <input
+            type="password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
         </label>
 
+        {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
+
         <ShellButton type="submit" variant="primary" fullWidth>
-          INICIAR SESIÓN
+          {isSubmitting ? 'ENTRANDO...' : 'INICIAR SESIÓN'}
         </ShellButton>
       </form>
 
