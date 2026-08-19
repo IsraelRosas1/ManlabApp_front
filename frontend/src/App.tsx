@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { API_BASE_URL, type ApiStatus, checkApiConnection } from './api';
-import { clearAuthSession } from './auth';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import {
+  API_BASE_URL,
+  DailyLogNotFoundError,
+  type ApiStatus,
+  type RetoDailyLog,
+  type RetoDailyLogPatch,
+  checkApiConnection,
+  createRetoDailyLog,
+  getIdentityMe,
+  getRetoDailyLog,
+  getTodayLogDate,
+  updateRetoDailyLog,
+} from './api';
+import { clearAuthSession, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
 
 type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
 
 type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
+
+const protectedScreens: ScreenKey[] = ['reto', 'consejo', 'clon', 'perfil', 'veredicto'];
 
 type TabButtonProps = {
   current: ScreenKey;
@@ -50,12 +64,27 @@ const tabs: Array<{
   },
 ];
 
-const retoFrentes = [
-  { label: 'Intelectual', icon: <IdeaIcon />, checked: true },
-  { label: 'Espiritual', icon: <FeatherIcon />, checked: true },
-  { label: 'Físico', icon: <DumbbellIcon />, checked: false },
-  { label: 'Económico', icon: <DollarIcon />, checked: true },
-  { label: 'Social / Atracción', icon: <PeopleIcon />, checked: true },
+const defaultRetoLog: RetoDailyLog = {
+  dayIndex: 1,
+  logDate: getTodayLogDate(),
+  fIntelectual: false,
+  fEspiritual: false,
+  fFisico: false,
+  fEconomico: false,
+  fSocialAtraccion: false,
+  bitacora: '',
+};
+
+const retoFrentes: Array<{
+  key: keyof RetoDailyLogPatch;
+  label: string;
+  icon: ReactNode;
+}> = [
+  { key: 'fIntelectual', label: 'Intelectual', icon: <IdeaIcon /> },
+  { key: 'fEspiritual', label: 'Espiritual', icon: <FeatherIcon /> },
+  { key: 'fFisico', label: 'Físico', icon: <DumbbellIcon /> },
+  { key: 'fEconomico', label: 'Económico', icon: <DollarIcon /> },
+  { key: 'fSocialAtraccion', label: 'Social / Atracción', icon: <PeopleIcon /> },
 ];
 
 const dailyTip = {
@@ -76,6 +105,10 @@ function getInitialScreen(): ScreenKey {
 
   const hash = window.location.hash.replace('#', '') as ScreenKey;
   if (['login', 'reto', 'consejo', 'clon', 'perfil', 'veredicto'].includes(hash)) {
+    if (protectedScreens.includes(hash) && !isAuthenticated()) {
+      return 'login';
+    }
+
     return hash;
   }
 
@@ -86,11 +119,22 @@ function useScreen() {
   const [screen, setScreen] = useState<ScreenKey>(getInitialScreen);
 
   useEffect(() => {
-    const syncFromHash = () => setScreen(getInitialScreen());
+    const syncFromHash = () => {
+      const nextScreen = getInitialScreen();
+
+      if (nextScreen === 'login' && window.location.hash !== '#login') {
+        window.location.hash = '#login';
+        return;
+      }
+
+      setScreen(nextScreen);
+    };
 
     if (!window.location.hash) {
       window.location.hash = '#login';
     }
+
+    syncFromHash();
 
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
@@ -110,6 +154,11 @@ function useScreen() {
   }, [screen]);
 
   const navigate = (next: ScreenKey) => {
+    if (protectedScreens.includes(next) && !isAuthenticated()) {
+      window.location.hash = '#login';
+      return;
+    }
+
     window.location.hash = `#${next}`;
   };
 
@@ -146,6 +195,44 @@ function LoginScreen({
   onEnter: () => void;
   onNavigate: (screen: ScreenKey) => void;
 }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo iniciar sesión.');
+      }
+
+      const loginResponse = (await response.json()) as LoginResponse;
+      const identity = await getIdentityMe(loginResponse);
+
+      saveAuthSession(loginResponse, identity);
+      onEnter();
+    } catch {
+      setErrorMessage('Correo o contraseña inválidos.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <section className="screen screen--login">
       <div className="login-mark" aria-hidden="true">
@@ -159,19 +246,35 @@ function LoginScreen({
         <p>HONOS · PROBITAS · PERFECTIO</p>
       </div>
 
-      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); onEnter(); }}>
+      <form className="auth-form" onSubmit={handleLogin}>
         <label className="field">
           <span>CORREO</span>
-          <input type="email" placeholder="tu@correo.com" autoComplete="email" />
+          <input
+            type="email"
+            placeholder="tu@correo.com"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
         </label>
 
         <label className="field">
           <span>CONTRASEÑA</span>
-          <input type="password" placeholder="••••••••" autoComplete="current-password" />
+          <input
+            type="password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
         </label>
 
+        {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
+
         <ShellButton type="submit" variant="primary" fullWidth>
-          INICIAR SESIÓN
+          {isSubmitting ? 'ENTRANDO...' : 'INICIAR SESIÓN'}
         </ShellButton>
       </form>
 
@@ -187,12 +290,106 @@ function LoginScreen({
 }
 
 function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const [dailyLog, setDailyLog] = useState<RetoDailyLog>(defaultRetoLog);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isLoadingLog, setIsLoadingLog] = useState(true);
+  const [isSavingLog, setIsSavingLog] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setIsLoadingLog(true);
+    getRetoDailyLog()
+      .then((log) => {
+        if (isMounted) {
+          setDailyLog({ ...log, bitacora: log.bitacora ?? '' });
+          setStatusMessage('');
+        }
+      })
+      .catch(async (error) => {
+        if (isMounted) {
+          if (error instanceof DailyLogNotFoundError) {
+            try {
+              const createdLog = await createRetoDailyLog({
+                logDate: getTodayLogDate(),
+                fIntelectual: false,
+                fEspiritual: false,
+                fFisico: false,
+                fEconomico: false,
+                fSocialAtraccion: false,
+                bitacora: '',
+              });
+
+              if (isMounted) {
+                setDailyLog({ ...createdLog, bitacora: createdLog.bitacora ?? '' });
+                setStatusMessage('');
+              }
+            } catch {
+              if (isMounted) {
+                setStatusMessage('No se pudo crear la bitácora de hoy.');
+              }
+            }
+
+            return;
+          }
+
+          setStatusMessage('No se pudo cargar la bitácora de hoy.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingLog(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const updateFront = (key: keyof RetoDailyLogPatch) => {
+    setDailyLog((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  };
+
+  const updateNote = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setDailyLog((current) => ({
+      ...current,
+      bitacora: event.target.value,
+    }));
+  };
+
+  const saveDailyLog = async () => {
+    setIsSavingLog(true);
+    setStatusMessage('');
+
+    try {
+      const updatedLog = await updateRetoDailyLog({
+        fIntelectual: dailyLog.fIntelectual,
+        fEspiritual: dailyLog.fEspiritual,
+        fFisico: dailyLog.fFisico,
+        fEconomico: dailyLog.fEconomico,
+        fSocialAtraccion: dailyLog.fSocialAtraccion,
+        bitacora: dailyLog.bitacora ?? '',
+      });
+
+      setDailyLog({ ...updatedLog, bitacora: updatedLog.bitacora ?? '' });
+      setStatusMessage('Bitácora guardada.');
+    } catch {
+      setStatusMessage('No se pudo guardar la bitácora.');
+    } finally {
+      setIsSavingLog(false);
+    }
+  };
+
   return (
     <section className="screen screen--stacked">
       <header className="screen-header screen-header--with-metric">
         <div>
-          <h2>DÍA 47 / 100</h2>
-          <p>EDICIÓN HIERRO</p>
+          <h2>DÍA {dailyLog.dayIndex} / 100</h2>
+          <p>{dailyLog.logDate}</p>
         </div>
 
         <div className="metric">
@@ -210,27 +407,46 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
 
       <div className="fronts-list" role="list">
         {retoFrentes.map((front) => (
-          <div className="front-row" key={front.label} role="listitem">
+          <button
+            type="button"
+            className="front-row"
+            key={front.label}
+            role="listitem"
+            onClick={() => updateFront(front.key)}
+            disabled={isLoadingLog}
+          >
             <div className="front-row__label">
               <span className="front-row__icon">{front.icon}</span>
               <span>{front.label}</span>
             </div>
 
-            <div className={`front-row__state ${front.checked ? 'is-checked' : 'is-empty'}`}>
-              {front.checked ? <CheckIcon /> : <span />}
+            <div className={`front-row__state ${dailyLog[front.key] ? 'is-checked' : 'is-empty'}`}>
+              {dailyLog[front.key] ? <CheckIcon /> : <span />}
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
       <label className="note-field">
         <span className="sr-only">Bitácora de hoy</span>
-        <textarea placeholder="Bitácora de hoy..." rows={5} />
+        <textarea
+          placeholder="Bitácora de hoy..."
+          rows={5}
+          value={dailyLog.bitacora ?? ''}
+          onChange={updateNote}
+          disabled={isLoadingLog}
+        />
       </label>
+
+      {statusMessage ? <p className="reto-status">{statusMessage}</p> : null}
 
       <blockquote className="doctrine-quote">
         “Si trabajas diario es inevitable tener resultados; si no, es inevitable fracasar.”
       </blockquote>
+
+      <ShellButton variant="secondary" fullWidth onClick={saveDailyLog}>
+        {isSavingLog ? 'GUARDANDO...' : 'GUARDAR BITÁCORA'}
+      </ShellButton>
 
       <ShellButton variant="primary" fullWidth onClick={() => onNavigate('veredicto')}>
         PEDIR VEREDICTO AL CLON

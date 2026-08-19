@@ -7,11 +7,22 @@ export type LoginResponse = {
   refreshToken?: string;
 };
 
-type AuthSession = LoginResponse & {
-  expiresAt: number;
+export type IdentityMe = {
+  userId: string;
+  email: string;
+  name: string;
+  activeEnrollmentId: string;
+  currentDayIndex: number;
+  startDate: string;
+  status: string;
 };
 
-function readAuthSession(): AuthSession | null {
+type AuthSession = LoginResponse & {
+  expiresAt: number;
+  identity?: IdentityMe;
+};
+
+export function readAuthSession(): AuthSession | null {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -29,9 +40,10 @@ function readAuthSession(): AuthSession | null {
   }
 }
 
-export function saveAuthSession(loginResponse: LoginResponse) {
+export function saveAuthSession(loginResponse: LoginResponse, identity?: IdentityMe) {
   const session: AuthSession = {
     ...loginResponse,
+    identity,
     expiresAt: Date.now() + loginResponse.expiresIn * 1000,
   };
 
@@ -49,6 +61,11 @@ export function getAccessToken() {
   return session?.accessToken ?? null;
 }
 
+export function getIdentity() {
+  const session = readAuthSession();
+  return session?.identity ?? null;
+}
+
 export function isAuthenticated() {
   const session = readAuthSession();
 
@@ -60,7 +77,7 @@ export function isAuthenticated() {
   return true;
 }
 
-export function getAuthHeader() {
+export function getAuthHeader(): Record<string, string> {
   const session = readAuthSession();
 
   if (!session?.accessToken || !session.tokenType) {
