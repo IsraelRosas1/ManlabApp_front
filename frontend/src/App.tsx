@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { API_BASE_URL, type ApiStatus, checkApiConnection } from './api';
+import { clearAuthSession } from './auth';
 
 type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
 
@@ -145,42 +146,6 @@ function LoginScreen({
   onEnter: () => void;
   onNavigate: (screen: ScreenKey) => void;
 }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErrorMessage('');
-    setIsSubmitting(true);
-
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-      const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('No se pudo iniciar sesión.');
-      }
-
-      onEnter();
-    } catch {
-      setErrorMessage('Correo o contraseña inválidos.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <section className="screen screen--login">
       <div className="login-mark" aria-hidden="true">
@@ -194,35 +159,19 @@ function LoginScreen({
         <p>HONOS · PROBITAS · PERFECTIO</p>
       </div>
 
-      <form className="auth-form" onSubmit={handleLogin}>
+      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); onEnter(); }}>
         <label className="field">
           <span>CORREO</span>
-          <input
-            type="email"
-            placeholder="tu@correo.com"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
+          <input type="email" placeholder="tu@correo.com" autoComplete="email" />
         </label>
 
         <label className="field">
           <span>CONTRASEÑA</span>
-          <input
-            type="password"
-            placeholder="••••••••"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
+          <input type="password" placeholder="••••••••" autoComplete="current-password" />
         </label>
 
-        {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
-
         <ShellButton type="submit" variant="primary" fullWidth>
-          {isSubmitting ? 'ENTRANDO...' : 'INICIAR SESIÓN'}
+          INICIAR SESIÓN
         </ShellButton>
       </form>
 
@@ -381,6 +330,11 @@ function DelphiEmbed() {
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
 
+  const handleLogout = () => {
+    clearAuthSession();
+    onNavigate('login');
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -446,6 +400,10 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
           <strong>Videoteca · Hermandad</strong>
         </div>
       </div>
+
+      <ShellButton variant="secondary" fullWidth onClick={handleLogout}>
+        CERRAR SESIÓN
+      </ShellButton>
 
       <BottomNav current="perfil" onNavigate={onNavigate} />
     </section>
