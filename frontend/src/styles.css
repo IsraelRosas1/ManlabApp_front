@@ -169,7 +169,6 @@ img {
 }
 
 .field input,
-.chat-composer input,
 .note-field textarea {
   width: 100%;
   border-radius: 10px;
@@ -186,13 +185,11 @@ img {
 }
 
 .field input::placeholder,
-.chat-composer input::placeholder,
 .note-field textarea::placeholder {
   color: rgba(245, 240, 232, 0.32);
 }
 
 .field input:focus,
-.chat-composer input:focus,
 .note-field textarea:focus {
   border-color: rgba(212, 168, 87, 0.5);
   background: rgba(255, 255, 255, 0.045);
@@ -514,81 +511,20 @@ img {
   padding-top: 12px;
 }
 
-.clone-panel {
-  min-height: 474px;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
-  border-radius: 22px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: rgba(245, 240, 232, 0.36);
-  background: rgba(255, 255, 255, 0.01);
-  padding: 26px;
+.delphi-embed {
+  width: 100%;
+  min-height: 600px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.clone-panel svg {
-  width: 36px;
-  height: 36px;
-  stroke: currentColor;
-  margin-bottom: 14px;
-}
-
-.clone-panel p {
-  margin: 0;
-  font-size: 1.08rem;
-}
-
-.clone-panel span,
-.clone-panel small,
-.clone-panel em {
+.delphi-embed iframe {
   display: block;
-}
-
-.clone-panel span {
-  font-size: 1.08rem;
-}
-
-.clone-panel small {
-  font-size: 1.04rem;
-}
-
-.clone-panel em {
-  margin-top: 8px;
-  font-style: normal;
-  font-size: 0.92rem;
-}
-
-.chat-composer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-}
-
-.chat-composer input {
-  min-height: 62px;
-  flex: 1;
-  border-radius: 999px;
-  padding: 0 22px;
-  font-size: 1rem;
-}
-
-.send-button {
-  width: 64px;
-  height: 64px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #deb35f 0%, #d4a857 100%);
-  color: #0c0c0c;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 10px 24px rgba(212, 168, 87, 0.22);
-  cursor: pointer;
-}
-
-.send-button svg {
-  width: 24px;
-  height: 24px;
-  stroke: currentColor;
+  width: 100%;
+  min-height: 600px;
+  border: 0;
 }
 
 .profile-hero {
@@ -656,6 +592,46 @@ img {
   gap: 10px;
 }
 
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.api-status__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: rgba(245, 240, 232, 0.38);
+}
+
+.api-status__dot--connected {
+  background: #42d17b;
+}
+
+.api-status__dot--unreachable,
+.api-status__dot--not-configured {
+  background: #d14f42;
+}
+
+.api-status strong {
+  display: block;
+  color: var(--crema);
+  font-size: 0.92rem;
+}
+
+.api-status p {
+  margin: 3px 0 0;
+  color: rgba(245, 240, 232, 0.52);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .locked-stack {
   display: grid;
   gap: 10px;
@@ -695,11 +671,10 @@ img {
 .login-brand,
 .auth-form,
 .tip-card,
-.clone-panel,
+.delphi-embed,
 .profile-card,
 .locked-stack,
 .fronts-list,
-.chat-composer,
 .screen--veredicto,
 .screen--stacked {
   position: relative;

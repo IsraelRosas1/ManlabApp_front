@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { API_BASE_URL, type ApiStatus, checkApiConnection } from './api';
 
 type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
 
@@ -66,8 +67,6 @@ const dailyTip = {
 
 const verdictText =
   'Tres días sin pisar el gimnasio, y el resto del circuito ya lo siente. Tu economía se sostuvo, tu palabra con Dios se sostuvo — pero el cuerpo es la base, y una base que cede arrastra todo lo que construiste encima. No es cansancio. Es una decisión que estás tomando cada mañana que te quedas en la cama.';
-
-const chatPlaceholder = 'Escribe tu mensaje...';
 
 function getInitialScreen(): ScreenKey {
   if (typeof window === 'undefined') {
@@ -288,30 +287,62 @@ function ClonScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
     <section className="screen screen--stacked screen--tight-bottom">
       <header className="screen-header">
         <h2>HABLA CON EL CLON</h2>
-        <p>Master AI</p>
+        <p>Master Santana</p>
       </header>
 
-      <div className="clone-panel">
-        <ChatBubbleIcon />
-        <p>Embed de Delphi</p>
-        <span>(embed.delphi.ai)</span>
-        <small>se renderiza aquí</small>
-        <em>Solo visible si entitlement_status = active</em>
-      </div>
-
-      <div className="chat-composer">
-        <input type="text" placeholder={chatPlaceholder} aria-label="Escribe tu mensaje" />
-        <button type="button" aria-label="Enviar mensaje" className="send-button">
-          <SendIcon />
-        </button>
-      </div>
+      <DelphiEmbed />
 
       <BottomNav current="clon" onNavigate={onNavigate} />
     </section>
   );
 }
 
+function DelphiEmbed() {
+  const embedRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = embedRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = '';
+
+    const script = document.createElement('script');
+    script.src = 'https://www.delphi.ai/embed.js';
+    script.async = true;
+    script.dataset.channel = '78394006-0094-4443-bd09-85ecc0901a19';
+    script.dataset.mode = 'inline';
+    script.dataset.width = '100%';
+    script.dataset.height = '600';
+
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = '';
+    };
+  }, []);
+
+  return <div ref={embedRef} className="delphi-embed" aria-label="Chat Delphi" />;
+}
+
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    checkApiConnection().then((status) => {
+      if (isMounted) {
+        setApiStatus(status);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section className="screen screen--stacked screen--tight-bottom">
       <header className="profile-hero">
@@ -326,6 +357,14 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         <span className="profile-card__eyebrow">Estado actual</span>
         <strong>Acceso activo</strong>
         <p>La suscripción desbloquea el Reto, el consejo, el Clon y el resto del muro.</p>
+      </div>
+
+      <div className="api-status">
+        <span className={`api-status__dot api-status__dot--${apiStatus}`} />
+        <div>
+          <strong>{getApiStatusLabel(apiStatus)}</strong>
+          <p>{API_BASE_URL || 'VITE_API_BASE_URL no está configurado'}</p>
+        </div>
       </div>
 
       <div className="profile-grid">
@@ -359,6 +398,17 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       <BottomNav current="perfil" onNavigate={onNavigate} />
     </section>
   );
+}
+
+function getApiStatusLabel(status: ApiStatus) {
+  const labels: Record<ApiStatus, string> = {
+    checking: 'Revisando API local',
+    connected: 'API local conectada',
+    unreachable: 'API local sin respuesta',
+    'not-configured': 'API sin configurar',
+  };
+
+  return labels[status];
 }
 
 function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (screen: ScreenKey) => void }) {
@@ -521,24 +571,6 @@ function ArrowLeftIcon() {
   return (
     <SvgIcon viewBox="0 0 24 24">
       <path d="M15 18 9 12l6-6" />
-    </SvgIcon>
-  );
-}
-
-function ChatBubbleIcon() {
-  return (
-    <SvgIcon viewBox="0 0 24 24">
-      <path d="M4 5h16v11H9l-5 4V5Z" />
-      <path d="M8 10h8M8 13h5" />
-    </SvgIcon>
-  );
-}
-
-function SendIcon() {
-  return (
-    <SvgIcon viewBox="0 0 24 24">
-      <path d="M3 11.5 21 3l-6 18-3-7-9-2.5Z" />
-      <path d="M12 14 21 3" />
     </SvgIcon>
   );
 }
