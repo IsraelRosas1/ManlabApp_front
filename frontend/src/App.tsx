@@ -6,14 +6,18 @@ import {
   type ApiStatus,
   type RetoDailyLog,
   type RetoDailyLogPatch,
+  type RetoStreak,
+  type WeakLink,
   checkApiConnection,
   createRetoDailyLog,
   getIdentityMe,
   getRetoDailyLog,
+  getRetoStreak,
   getTodayLogDate,
+  getWeakLinks,
   updateRetoDailyLog,
 } from './api';
-import { clearAuthSession, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
+import { clearAuthSession, getIdentity, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
 
 type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
 
@@ -97,6 +101,28 @@ const dailyTip = {
 
 const verdictText =
   'Tres días sin pisar el gimnasio, y el resto del circuito ya lo siente. Tu economía se sostuvo, tu palabra con Dios se sostuvo — pero el cuerpo es la base, y una base que cede arrastra todo lo que construiste encima. No es cansancio. Es una decisión que estás tomando cada mañana que te quedas en la cama.';
+
+function getReverseRetoDay(fallbackDayIndex: number) {
+  const identity = getIdentity();
+
+  if (identity?.currentDayIndex) {
+    return Math.max(0, Math.min(100, 101 - identity.currentDayIndex));
+  }
+
+  const startDate = identity?.startDate;
+
+  if (!startDate) {
+    return Math.max(0, Math.min(100, 101 - fallbackDayIndex));
+  }
+
+  const start = new Date(startDate);
+  const today = new Date();
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const elapsedDays = Math.max(0, Math.floor((todayDay - startDay) / 86400000));
+
+  return Math.max(0, Math.min(100, 100 - elapsedDays));
+}
 
 function getInitialScreen(): ScreenKey {
   if (typeof window === 'undefined') {
@@ -291,9 +317,27 @@ function LoginScreen({
 
 function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [dailyLog, setDailyLog] = useState<RetoDailyLog>(defaultRetoLog);
+  const [weakLinks, setWeakLinks] = useState<WeakLink[]>([]);
+  const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [statusMessage, setStatusMessage] = useState('');
   const [isLoadingLog, setIsLoadingLog] = useState(true);
   const [isSavingLog, setIsSavingLog] = useState(false);
+
+  const loadWeakLinks = async () => {
+    try {
+      setWeakLinks(await getWeakLinks());
+    } catch {
+      setWeakLinks([]);
+    }
+  };
+
+  const loadStreak = async () => {
+    try {
+      setStreak(await getRetoStreak());
+    } catch {
+      setStreak({ currentStreak: 0, longestStreak: 0 });
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -347,6 +391,11 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
     };
   }, []);
 
+  useEffect(() => {
+    loadWeakLinks();
+    loadStreak();
+  }, []);
+
   const updateFront = (key: keyof RetoDailyLogPatch) => {
     setDailyLog((current) => ({
       ...current,
@@ -376,6 +425,8 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       });
 
       setDailyLog({ ...updatedLog, bitacora: updatedLog.bitacora ?? '' });
+      await loadWeakLinks();
+      await loadStreak();
       setStatusMessage('Bitácora guardada.');
     } catch {
       setStatusMessage('No se pudo guardar la bitácora.');
@@ -384,23 +435,30 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
     }
   };
 
+  const primaryWeakLink = weakLinks[0];
+  const reverseRetoDay = getReverseRetoDay(dailyLog.dayIndex);
+
   return (
     <section className="screen screen--stacked">
       <header className="screen-header screen-header--with-metric">
         <div>
-          <h2>DÍA {dailyLog.dayIndex} / 100</h2>
+          <h2>DIA {reverseRetoDay}/100</h2>
           <p>{dailyLog.logDate}</p>
         </div>
 
         <div className="metric">
           <FlameIcon />
-          <span>12</span>
+          <span>{streak.currentStreak}</span>
         </div>
       </header>
 
       <div className="alert-pill">
         <WarningIcon />
-        <span>Eslabón débil: Físico — 3 días cayendo</span>
+        <span>
+          {primaryWeakLink
+            ? `Eslabón débil: ${primaryWeakLink.discipline} — ${primaryWeakLink.failedDays} días cayendo`
+            : 'Eslabón débil: sin fallas registradas'}
+        </span>
       </div>
 
       <p className="section-kicker">LOS CINCO FRENTES</p>
@@ -545,6 +603,7 @@ function DelphiEmbed() {
 
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
+  const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
 
   const handleLogout = () => {
     clearAuthSession();
@@ -559,6 +618,18 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         setApiStatus(status);
       }
     });
+
+    getRetoStreak()
+      .then((retoStreak) => {
+        if (isMounted) {
+          setStreak(retoStreak);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setStreak({ currentStreak: 0, longestStreak: 0 });
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -592,8 +663,8 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       <div className="profile-grid">
         <article className="profile-card">
           <span className="profile-card__eyebrow">Racha</span>
-          <strong>12 días</strong>
-          <p>Máxima: 18</p>
+          <strong>{streak.currentStreak} días</strong>
+          <p>Máxima: {streak.longestStreak}</p>
         </article>
         <article className="profile-card">
           <span className="profile-card__eyebrow">Rango</span>

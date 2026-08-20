@@ -63,6 +63,16 @@ export type RetoDailyLogCreate = RetoDailyLogPatch & {
   logDate: string;
 };
 
+export type WeakLink = {
+  discipline: string;
+  failedDays: number;
+};
+
+export type RetoStreak = {
+  currentStreak: number;
+  longestStreak: number;
+};
+
 export class DailyLogNotFoundError extends Error {
   constructor() {
     super('No existe la bitácora para esta fecha.');
@@ -97,6 +107,14 @@ function dailyLogsUrl() {
   const identity = getDailyLogIdentity();
 
   return apiUrl(`/api/users/${identity.userId}/retoenrollments/${identity.activeEnrollmentId}/daily-logs`);
+}
+
+function weakLinksUrl() {
+  return `${dailyLogsUrl()}/stats/weak-links`;
+}
+
+function streakUrl() {
+  return `${dailyLogsUrl()}/stats/streak`;
 }
 
 async function readDailyLogResponse(response: Response, logDate: string) {
@@ -162,4 +180,32 @@ export async function updateRetoDailyLog(data: RetoDailyLogPatch, logDate = getT
   }
 
   return readDailyLogResponse(response, logDate);
+}
+
+export async function getWeakLinks() {
+  const response = await fetch(weakLinksUrl(), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Could not load weak links');
+  }
+
+  return (await response.json()) as WeakLink[];
+}
+
+export async function getRetoStreak() {
+  const response = await fetch(streakUrl(), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Could not load streak');
+  }
+
+  return (await response.json()) as RetoStreak;
 }
