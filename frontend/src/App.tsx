@@ -19,11 +19,11 @@ import {
 } from './api';
 import { clearAuthSession, getIdentity, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
 
-type ScreenKey = 'login' | 'reto' | 'consejo' | 'clon' | 'perfil' | 'veredicto';
+type ScreenKey = 'login' | 'home' | 'reto' | 'notifications' | 'clon' | 'perfil' | 'veredicto';
 
 type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
 
-const protectedScreens: ScreenKey[] = ['reto', 'consejo', 'clon', 'perfil', 'veredicto'];
+const protectedScreens: ScreenKey[] = ['home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
 
 type TabButtonProps = {
   current: ScreenKey;
@@ -47,14 +47,19 @@ const tabs: Array<{
   icon: ReactNode;
 }> = [
   {
+    key: 'home',
+    label: 'Home',
+    icon: <HomeIcon />,
+  },
+  {
     key: 'reto',
     label: 'Reto',
     icon: <ClipboardIcon />, 
   },
   {
-    key: 'consejo',
-    label: 'Consejo',
-    icon: <BulbIcon />,
+    key: 'notifications',
+    label: 'Avisos',
+    icon: <BellIcon />,
   },
   {
     key: 'clon',
@@ -96,7 +101,7 @@ const dailyTip = {
   cardNumber: '99',
   body:
     'La calle no perdona la teoría. Lo que sabes en la cabeza vale cero si no lo has probado en carne.',
-  author: 'MASTER',
+  author: 'MASTER SANTANA',
 };
 
 const verdictText =
@@ -130,7 +135,7 @@ function getInitialScreen(): ScreenKey {
   }
 
   const hash = window.location.hash.replace('#', '') as ScreenKey;
-  if (['login', 'reto', 'consejo', 'clon', 'perfil', 'veredicto'].includes(hash)) {
+  if (['login', 'home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hash)) {
     if (protectedScreens.includes(hash) && !isAuthenticated()) {
       return 'login';
     }
@@ -169,8 +174,9 @@ function useScreen() {
   useEffect(() => {
     const titles: Record<ScreenKey, string> = {
       login: 'ManLab · Acceso',
+      home: 'ManLab · Home',
       reto: 'ManLab · Reto',
-      consejo: 'ManLab · Consejo',
+      notifications: 'ManLab · Avisos',
       clon: 'ManLab · Clon',
       perfil: 'ManLab · Perfil',
       veredicto: 'ManLab · Veredicto',
@@ -198,11 +204,13 @@ export default function App() {
     <div className="app-shell">
       <div className={`phone-frame phone-frame--${screen}`}>
         {screen === 'login' ? (
-          <LoginScreen onEnter={() => navigate('reto')} onNavigate={navigate} />
+          <LoginScreen onEnter={() => navigate('home')} onNavigate={navigate} />
+        ) : screen === 'home' ? (
+          <HomeScreen onNavigate={navigate} />
         ) : screen === 'reto' ? (
           <RetoScreen onNavigate={navigate} />
-        ) : screen === 'consejo' ? (
-          <ConsejoScreen onNavigate={navigate} />
+        ) : screen === 'notifications' ? (
+          <NotificationsScreen onNavigate={navigate} />
         ) : screen === 'clon' ? (
           <ClonScreen onNavigate={navigate} />
         ) : screen === 'perfil' ? (
@@ -515,23 +523,130 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   );
 }
 
-function ConsejoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const reverseRetoDay = getReverseRetoDay(1);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRetoStreak()
+      .then((retoStreak) => {
+        if (isMounted) {
+          setStreak(retoStreak);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setStreak({ currentStreak: 0, longestStreak: 0 });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return (
+    <section className="screen screen--stacked screen--tight-bottom home-screen">
+      <header className="home-brand-card">
+        <div className="home-brand-card__main">
+          <img src="/brand/manlab_dragon_dorado.svg" alt="" className="home-brand-card__logo" />
+          <div>
+            <h2>MANLAB APP</h2>
+            <p>H O N O S · P R O B I T A S ‎ · P E R F E C T I O</p>
+          </div>
+        </div>
+        <button type="button" className="home-bell-button" aria-label="Activar notificaciones">
+          <BellIcon />
+        </button>
+      </header>
+
+      <article className="home-action-card">
+        <span>CONSEJO DEL DÍA</span>
+        <strong>{dailyTip.body}</strong>
+        <p>{dailyTip.author}</p>
+      </article>
+
+      <div className="home-stats-grid">
+        <article className="home-stat-card">
+          <strong>DIA {reverseRetoDay}</strong>
+          <span>Reto 100 De 100</span>
+        </article>
+        <article className="home-stat-card">
+          <strong>{streak.currentStreak}</strong>
+          <span>Racha actual</span>
+        </article>
+      </div>
+
+      <section className="home-section">
+        <h3>ACCESO RÁPIDO</h3>
+        <div className="home-quick-grid">
+          <QuickAccessButton label="Reto" icon={<ClipboardIcon />} onClick={() => onNavigate('reto')} />
+          <QuickAccessButton label="Avisos" icon={<BellIcon />} onClick={() => onNavigate('notifications')} />
+          <QuickAccessButton label="Clon" icon={<ChatIcon />} onClick={() => onNavigate('clon')} />
+          <QuickAccessButton label="Contenido" icon={<BookIcon />} onClick={() => onNavigate('home')} />
+        </div>
+      </section>
+
+      <section className="home-section">
+        <h3>ÚLTIMAS NOTIFICACIONES</h3>
+        <div className="home-alerts">
+          <NotificationRow icon={<VideoIcon />} title="Nuevo video subido" meta="Hace 5 minutos" />
+          <NotificationRow icon={<BookIcon />} title="Nuevo ebook: Maestría en Convencimiento" meta="Hoy" />
+          <NotificationRow icon={<BulbIcon />} title="Nuevo consejo del día" meta="Hoy" />
+        </div>
+      </section>
+
+      <BottomNav current="home" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function QuickAccessButton({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" className="home-quick-button" onClick={onClick}>
+      <span>{icon}</span>
+      <strong>{label}</strong>
+    </button>
+  );
+}
+
+function NotificationRow({ icon, title, meta }: { icon: ReactNode; title: string; meta: string }) {
+  return (
+    <article className="home-alert-row">
+      <span className="home-alert-row__icon">{icon}</span>
+      <div>
+        <strong>{title}</strong>
+        <p>{meta}</p>
+      </div>
+      <ArrowLeftIcon />
+    </article>
+  );
+}
+
+function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   return (
     <section className="screen screen--stacked screen--tight-bottom">
       <header className="screen-header">
-        <h2>CONSEJO DEL DÍA</h2>
-        <p>{dailyTip.dayLabel}</p>
+        <h2>AVISOS</h2>
+        <p>Notificaciones</p>
       </header>
 
-      <article className="tip-card">
-        <div className="tip-card__number">{dailyTip.cardNumber}</div>
-        <p className="tip-card__body">{dailyTip.body}</p>
-        <div className="tip-card__author">— {dailyTip.author}</div>
-      </article>
+      <div className="locked-stack">
+        <div className="locked-row">
+          <span>Hoy</span>
+          <strong>Completa tu bitácora diaria</strong>
+        </div>
+        <div className="locked-row">
+          <span>Reto</span>
+          <strong>Revisa tu eslabón débil</strong>
+        </div>
+      </div>
 
       <div className="screen-spacer" />
 
-      <BottomNav current="consejo" onNavigate={onNavigate} />
+      <BottomNav current="notifications" onNavigate={onNavigate} />
     </section>
   );
 }
@@ -763,12 +878,49 @@ function ClipboardIcon() {
   );
 }
 
+function HomeIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 10v10h12V10" />
+      <path d="M10 20v-6h4v6" />
+    </SvgIcon>
+  );
+}
+
 function BulbIcon() {
   return (
     <SvgIcon viewBox="0 0 24 24">
       <path d="M9 18h6" />
       <path d="M10 21h4" />
       <path d="M8 10a4 4 0 1 1 8 0c0 1.7-.8 3-2 4-.6.5-1 1.1-1 2h-2c0-.9-.4-1.5-1-2-1.2-1-2-2.3-2-4Z" />
+    </SvgIcon>
+  );
+}
+
+function BellIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
+      <path d="M10 21h4" />
+    </SvgIcon>
+  );
+}
+
+function BookIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z" />
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 8H20" />
+    </SvgIcon>
+  );
+}
+
+function VideoIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 6h11v12H4V6Z" />
+      <path d="m15 10 5-3v10l-5-3" />
     </SvgIcon>
   );
 }
