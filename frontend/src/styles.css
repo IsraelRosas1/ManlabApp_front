@@ -371,10 +371,22 @@ img {
   flex: 0 0 auto;
 }
 
+.home-bell-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .home-bell-button svg {
   width: 24px;
   height: 24px;
   stroke: currentColor;
+}
+
+.home-notification-status {
+  margin: -12px 0 0;
+  color: rgba(245, 240, 232, 0.62);
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .home-action-card {
@@ -547,10 +559,43 @@ img {
   padding-top: 8px;
 }
 
+.metric--button {
+  cursor: pointer;
+}
+
 .metric svg {
   width: 22px;
   height: 22px;
   stroke: currentColor;
+}
+
+.reto-info-box {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid rgba(212, 168, 87, 0.36);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(33, 16, 12, 0.58);
+  color: rgba(245, 240, 232, 0.74);
+  cursor: pointer;
+  text-align: left;
+}
+
+.reto-info-box strong {
+  color: var(--oro);
+  font-size: 0.95rem;
+}
+
+.reto-info-box p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.reto-info-box span {
+  color: rgba(245, 240, 232, 0.55);
+  font-size: 0.84rem;
 }
 
 .alert-pill,
@@ -569,6 +614,11 @@ img {
 .alert-pill {
   width: fit-content;
   max-width: 100%;
+}
+
+.alert-pill--button {
+  cursor: pointer;
+  text-align: left;
 }
 
 .alert-pill svg,
@@ -615,6 +665,12 @@ img {
   gap: 12px;
 }
 
+.reto-card__title-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .reto-card__header h3,
 .reto-mini-menu h3 {
   margin: 0;
@@ -628,6 +684,85 @@ img {
   color: rgba(245, 240, 232, 0.62);
   font-size: 0.82rem;
   text-align: right;
+}
+
+.help-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 168, 87, 0.55);
+  color: var(--oro);
+  display: grid;
+  place-items: center;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.bitacora-help-modal {
+  width: min(100%, 430px);
+  max-height: min(82svh, 680px);
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(212, 168, 87, 0.48);
+  border-radius: 12px;
+  padding: 18px;
+  background: #11100f;
+  box-shadow: var(--shadow);
+}
+
+.bitacora-help-modal__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.bitacora-help-modal h3 {
+  margin: 0;
+  color: var(--oro);
+  font-family: var(--font-impacto);
+  font-size: 1.7rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.bitacora-help-modal__header button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--oro);
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.bitacora-help-modal p {
+  margin: 0;
+  color: rgba(245, 240, 232, 0.72);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.bitacora-example {
+  display: grid;
+  gap: 12px;
+}
+
+.bitacora-example strong {
+  color: var(--oro);
 }
 
 .reto-mini-menu {

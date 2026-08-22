@@ -17,6 +17,7 @@ import {
   getRetoStreak,
   getTodayLogDate,
   getWeakLinks,
+  enableOneSignalNotifications,
   registerUser,
   sendBrevoTestEmail,
   updateRetoDailyLog,
@@ -378,6 +379,9 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   const [statusMessage, setStatusMessage] = useState('');
   const [isLoadingLog, setIsLoadingLog] = useState(true);
   const [isSavingLog, setIsSavingLog] = useState(false);
+  const [isStreakInfoOpen, setIsStreakInfoOpen] = useState(false);
+  const [isWeakLinkInfoOpen, setIsWeakLinkInfoOpen] = useState(false);
+  const [isBitacoraHelpOpen, setIsBitacoraHelpOpen] = useState(false);
 
   const loadWeakLinks = async () => {
     try {
@@ -516,20 +520,68 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
           <p>{dailyLog.logDate}</p>
         </div>
 
-        <div className="metric">
+        <button
+          type="button"
+          className="metric metric--button"
+          onClick={() => setIsStreakInfoOpen((isOpen) => !isOpen)}
+          aria-expanded={isStreakInfoOpen}
+          aria-controls="reto-streak-info"
+        >
           <FlameIcon />
           <span>{streak.currentStreak}</span>
-        </div>
+        </button>
       </header>
 
-      <div className="alert-pill">
+      {isStreakInfoOpen ? (
+        <button
+          type="button"
+          className="reto-info-box"
+          id="reto-streak-info"
+          onClick={() => setIsStreakInfoOpen(false)}
+        >
+          <strong>Racha actual</strong>
+          <p>
+            Son los días consecutivos que has completado los cinco frentes. Si hoy todavía no está completo,
+            la racha de ayer se mantiene hasta que termine el día.
+          </p>
+          <span>Máxima: {streak.longestStreak} días</span>
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        className="alert-pill alert-pill--button"
+        onClick={() => setIsWeakLinkInfoOpen((isOpen) => !isOpen)}
+        aria-expanded={isWeakLinkInfoOpen}
+        aria-controls="reto-weak-link-info"
+      >
         <WarningIcon />
         <span>
           {primaryWeakLink
             ? `Eslabón débil: ${primaryWeakLink.discipline} — ${primaryWeakLink.failedDays} días cayendo`
             : 'Eslabón débil: sin fallas registradas'}
         </span>
-      </div>
+      </button>
+
+      {isWeakLinkInfoOpen ? (
+        <button
+          type="button"
+          className="reto-info-box"
+          id="reto-weak-link-info"
+          onClick={() => setIsWeakLinkInfoOpen(false)}
+        >
+          <strong>Eslabón débil</strong>
+          <p>
+            Es el frente que más has fallado en tu historial reciente (3 dias). Úsalo como señal para ajustar el día,
+            no como excusa para soltar el reto.
+          </p>
+          <span>
+            {primaryWeakLink
+              ? `${primaryWeakLink.discipline}: ${primaryWeakLink.failedDays} días fallados`
+              : 'No hay fallas suficientes para marcar un eslabón.'}
+          </span>
+        </button>
+      ) : null}
 
       <div className="reto-fronts-header">
         <p className="section-kicker">LOS CINCO FRENTES</p>
@@ -569,7 +621,17 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
 
       <section className="reto-card" id="reto-bitacora">
         <div className="reto-card__header">
-          <h3>BITÁCORA</h3>
+          <div className="reto-card__title-with-help">
+            <h3>BITÁCORA</h3>
+            <button
+              type="button"
+              className="help-button"
+              onClick={() => setIsBitacoraHelpOpen(true)}
+              aria-label="Ver ejemplo de bitácora"
+            >
+              ?
+            </button>
+          </div>
         </div>
 
         <label className="note-field">
@@ -593,6 +655,38 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       </section>
 
       {statusMessage ? <p className="reto-status">{statusMessage}</p> : null}
+
+      {isBitacoraHelpOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsBitacoraHelpOpen(false)}>
+          <section
+            className="bitacora-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bitacora-help-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="bitacora-help-modal__header">
+              <h3 id="bitacora-help-title">Cómo escribir una buena bitácora</h3>
+              <button type="button" onClick={() => setIsBitacoraHelpOpen(false)} aria-label="Cerrar ejemplo">
+                ×
+              </button>
+            </div>
+
+            <p>
+              Escribe evidencia concreta de lo que hiciste. Puedes combinar varias disciplinas en una misma
+              historia si ocurrieron juntas.
+            </p>
+
+            <div className="bitacora-example">
+              <p><strong>Intelectual:</strong> Hoy estudié 30 minutos mi curso de programación y terminé un módulo.</p>
+              <p><strong>Espiritual:</strong> Medité 15 minutos y mantuve presencia de mente aunque me distraía. Escuché el audiolibro del Poder del Ahora en el metro.</p>
+              <p><strong>Físico:</strong> Hice mi rutina de pesas de pierna y fui al club de correr durante 30 minutos.</p>
+              <p><strong>Económico:</strong> Estudié 20 minutos anuncios de Facebook para mi negocio. Solo pude eso; mañana empiezo a correrlos.</p>
+              <p><strong>Social:</strong> En el club de correr hablé con 2 chavos nuevos. En el camino a casa abordé a 1 mujer; no pude sacar cita, me grabé y soné nervioso.</p>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <BottomNav current="reto" onNavigate={onNavigate} />
     </section>
@@ -621,6 +715,8 @@ function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
 
 function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [notificationStatus, setNotificationStatus] = useState('');
+  const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const reverseRetoDay = getReverseRetoDay(1);
 
   useEffect(() => {
@@ -643,6 +739,20 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
     };
   }, []);
 
+  const handleEnableNotifications = async () => {
+    setNotificationStatus('');
+    setIsEnablingNotifications(true);
+
+    try {
+      await enableOneSignalNotifications();
+      setNotificationStatus('Notificaciones activadas.');
+    } catch (error) {
+      setNotificationStatus(error instanceof Error ? error.message : 'No se pudieron activar las notificaciones.');
+    } finally {
+      setIsEnablingNotifications(false);
+    }
+  };
+
   return (
     <section className="screen screen--stacked screen--tight-bottom home-screen">
       <header className="home-brand-card">
@@ -653,10 +763,18 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
             <p>H O N O S · P R O B I T A S ‎ · P E R F E C T I O</p>
           </div>
         </div>
-        <button type="button" className="home-bell-button" aria-label="Activar notificaciones">
+        <button
+          type="button"
+          className="home-bell-button"
+          aria-label="Activar notificaciones"
+          onClick={handleEnableNotifications}
+          disabled={isEnablingNotifications}
+        >
           <BellIcon />
         </button>
       </header>
+
+      {notificationStatus ? <p className="home-notification-status">{notificationStatus}</p> : null}
 
       <article className="home-action-card">
         <span>CONSEJO DEL DÍA</span>

@@ -1,5 +1,29 @@
 import { getAuthHeader, getIdentity, type IdentityMe, type LoginResponse } from './auth';
 
+declare global {
+  interface Window {
+    OneSignal?: OneSignalWebSDK;
+    OneSignalDeferred?: Array<(OneSignal: OneSignalWebSDK) => Promise<void> | void>;
+  }
+}
+
+type OneSignalWebSDK = {
+  Notifications: {
+    isPushSupported?: () => boolean;
+    requestPermission: () => Promise<boolean>;
+  };
+  User: {
+    PushSubscription: {
+      id?: string | null;
+      optedIn?: boolean;
+      optIn: () => Promise<void>;
+    };
+  };
+};
+
+const ONESIGNAL_READY_TIMEOUT_MS = 8000;
+const ONESIGNAL_SUBSCRIPTION_TIMEOUT_MS = 8000;
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
 
 export type ApiStatus = 'checking' | 'connected' | 'unreachable' | 'not-configured';
@@ -284,4 +308,107 @@ export async function sendBrevoTestEmail() {
     const message = await getResponseErrorMessage(response);
     throw new Error(message || `Could not send Brevo test email (${response.status})`);
   }
+}
+
+function withOneSignal<T>(callback: (OneSignal: OneSignalWebSDK) => Promise<T>) {
+  return new Promise<T>((resolve, reject) => {
+    let isSettled = false;
+    const timeout = window.setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true;
+        reject(new Error('OneSignal no terminó de cargar. Revisa el dominio permitido en OneSignal.'));
+      }
+    }, ONESIGNAL_READY_TIMEOUT_MS);
+
+    const runCallback = async (OneSignal: OneSignalWebSDK) => {
+      if (isSettled) {
+        return;
+      }
+
+      try {
+        const result = await callback(OneSignal);
+        isSettled = true;
+        window.clearTimeout(timeout);
+        resolve(result);
+      } catch (error) {
+        isSettled = true;
+        window.clearTimeout(timeout);
+        reject(error);
+      }
+    };
+
+    if (window.OneSignal) {
+      void runCallback(window.OneSignal);
+      return;
+    }
+
+    if (!window.OneSignalDeferred) {
+      window.clearTimeout(timeout);
+      reject(new Error('OneSignal SDK no está cargado.'));
+      return;
+    }
+
+    window.OneSignalDeferred.push(runCallback);
+  });
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function waitForOneSignalSubscriptionId(OneSignal: OneSignalWebSDK) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < ONESIGNAL_SUBSCRIPTION_TIMEOUT_MS) {
+    const id = OneSignal.User.PushSubscription.id;
+    if (id) {
+      return id;
+    }
+
+    await wait(500);
+  }
+
+  throw new Error('No se pudo obtener la suscripción de OneSignal.');
+}
+
+export async function updateOneSignalSubscriptionId(subscriptionId: string) {
+  const response = await fetch(apiUrl('/api/identity/onesignal'), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify({
+      oneSignalPlayerId: subscriptionId,
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await getResponseErrorMessage(response);
+    throw new Error(message || `Could not save OneSignal subscription (${response.status})`);
+  }
+}
+
+export async function enableOneSignalNotifications() {
+  const subscriptionId = await withOneSignal(async (OneSignal) => {
+    if (OneSignal.Notifications.isPushSupported && !OneSignal.Notifications.isPushSupported()) {
+      throw new Error('Este navegador no soporta notificaciones web.');
+    }
+
+    const hasPermission = await OneSignal.Notifications.requestPermission();
+    if (!hasPermission) {
+      throw new Error('Permiso de notificaciones rechazado.');
+    }
+
+    if (!OneSignal.User.PushSubscription.optedIn) {
+      await OneSignal.User.PushSubscription.optIn();
+    }
+
+    return waitForOneSignalSubscriptionId(OneSignal);
+  });
+
+  await updateOneSignalSubscriptionId(subscriptionId);
+  return subscriptionId;
 }
