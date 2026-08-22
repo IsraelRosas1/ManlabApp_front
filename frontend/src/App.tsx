@@ -11,10 +11,14 @@ import {
   checkApiConnection,
   createRetoDailyLog,
   getIdentityMe,
+  getLocalDateOffset,
   getRetoDailyLog,
+  getRetoLogsFromTo,
   getRetoStreak,
   getTodayLogDate,
   getWeakLinks,
+  registerUser,
+  sendBrevoTestEmail,
   updateRetoDailyLog,
 } from './api';
 import { clearAuthSession, getIdentity, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
@@ -232,14 +236,25 @@ function LoginScreen({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage('');
+    setSuccessMessage('');
     setIsSubmitting(true);
 
     try {
+      if (authMode === 'register') {
+        await registerUser(email, password);
+        setAuthMode('login');
+        setPassword('');
+        setSuccessMessage('Cuenta creada. Inicia sesión para entrar.');
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
         method: 'POST',
         headers: {
@@ -260,8 +275,14 @@ function LoginScreen({
 
       saveAuthSession(loginResponse, identity);
       onEnter();
-    } catch {
-      setErrorMessage('Correo o contraseña inválidos.');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : authMode === 'register'
+            ? 'No se pudo crear la cuenta.'
+            : 'Correo o contraseña inválidos.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -280,7 +301,32 @@ function LoginScreen({
         <p>HONOS · PROBITAS · PERFECTIO</p>
       </div>
 
-      <form className="auth-form" onSubmit={handleLogin}>
+      <div className="auth-mode-toggle" aria-label="Modo de acceso">
+        <button
+          type="button"
+          className={authMode === 'login' ? 'is-active' : ''}
+          onClick={() => {
+            setAuthMode('login');
+            setErrorMessage('');
+            setSuccessMessage('');
+          }}
+        >
+          Acceso
+        </button>
+        <button
+          type="button"
+          className={authMode === 'register' ? 'is-active' : ''}
+          onClick={() => {
+            setAuthMode('register');
+            setErrorMessage('');
+            setSuccessMessage('');
+          }}
+        >
+          Registro
+        </button>
+      </div>
+
+      <form className="auth-form" onSubmit={handleAuthSubmit}>
         <label className="field">
           <span>CORREO</span>
           <input
@@ -305,10 +351,11 @@ function LoginScreen({
           />
         </label>
 
+        {successMessage ? <p className="auth-success">{successMessage}</p> : null}
         {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
 
         <ShellButton type="submit" variant="primary" fullWidth>
-          {isSubmitting ? 'ENTRANDO...' : 'INICIAR SESIÓN'}
+          {isSubmitting ? (authMode === 'register' ? 'CREANDO...' : 'ENTRANDO...') : authMode === 'register' ? 'CREAR CUENTA' : 'INICIAR SESIÓN'}
         </ShellButton>
       </form>
 
@@ -325,6 +372,7 @@ function LoginScreen({
 
 function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [dailyLog, setDailyLog] = useState<RetoDailyLog>(defaultRetoLog);
+  const [recentLogs, setRecentLogs] = useState<RetoDailyLog[]>([]);
   const [weakLinks, setWeakLinks] = useState<WeakLink[]>([]);
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [statusMessage, setStatusMessage] = useState('');
@@ -344,6 +392,14 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       setStreak(await getRetoStreak());
     } catch {
       setStreak({ currentStreak: 0, longestStreak: 0 });
+    }
+  };
+
+  const loadRecentLogs = async () => {
+    try {
+      setRecentLogs(await getRetoLogsFromTo(getLocalDateOffset(-6), getTodayLogDate()));
+    } catch {
+      setRecentLogs([]);
     }
   };
 
@@ -402,6 +458,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   useEffect(() => {
     loadWeakLinks();
     loadStreak();
+    loadRecentLogs();
   }, []);
 
   const updateFront = (key: keyof RetoDailyLogPatch) => {
@@ -435,6 +492,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       setDailyLog({ ...updatedLog, bitacora: updatedLog.bitacora ?? '' });
       await loadWeakLinks();
       await loadStreak();
+      await loadRecentLogs();
       setStatusMessage('Bitácora guardada.');
     } catch {
       setStatusMessage('No se pudo guardar la bitácora.');
@@ -445,9 +503,13 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
 
   const primaryWeakLink = weakLinks[0];
   const reverseRetoDay = getReverseRetoDay(dailyLog.dayIndex);
+  const completedFronts = retoFrentes.filter((front) => dailyLog[front.key]).length;
+  const scrollToRetoSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
-    <section className="screen screen--stacked">
+    <section className="screen screen--stacked reto-dashboard">
       <header className="screen-header screen-header--with-metric">
         <div>
           <h2>DIA {reverseRetoDay}/100</h2>
@@ -469,7 +531,10 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
         </span>
       </div>
 
-      <p className="section-kicker">LOS CINCO FRENTES</p>
+      <div className="reto-fronts-header">
+        <p className="section-kicker">LOS CINCO FRENTES</p>
+        <span>{completedFronts}/5</span>
+      </div>
 
       <div className="fronts-list" role="list">
         {retoFrentes.map((front) => (
@@ -493,33 +558,64 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
         ))}
       </div>
 
-      <label className="note-field">
-        <span className="sr-only">Bitácora de hoy</span>
-        <textarea
-          placeholder="Bitácora de hoy..."
-          rows={5}
-          value={dailyLog.bitacora ?? ''}
-          onChange={updateNote}
-          disabled={isLoadingLog}
-        />
-      </label>
+      <section className="home-section reto-mini-menu">
+        <h3>ACCESO RETO</h3>
+        <div className="home-quick-grid">
+          <QuickAccessButton label="Editar 5 Disciplinas" icon={<EditIcon />} onClick={() => scrollToRetoSection('reto-edit')} />
+          <QuickAccessButton label="Historial 7 Dias" icon={<HistoryIcon />} onClick={() => scrollToRetoSection('reto-history')} />
+          <QuickAccessButton label="Resumen 7 Dias" icon={<FlameIcon />} onClick={() => scrollToRetoSection('reto-summary')} />
+        </div>
+      </section>
+
+      <section className="reto-card" id="reto-bitacora">
+        <div className="reto-card__header">
+          <h3>BITÁCORA</h3>
+        </div>
+
+        <label className="note-field">
+          <span className="sr-only">Bitácora de hoy</span>
+          <textarea
+            placeholder="Detalla tus 5 disciplinas "
+            rows={5}
+            value={dailyLog.bitacora ?? ''}
+            onChange={updateNote}
+            disabled={isLoadingLog}
+          />
+        </label>
+
+        <ShellButton variant="secondary" fullWidth onClick={saveDailyLog}>
+          {isSavingLog ? 'GUARDANDO...' : 'GUARDAR BITÁCORA'}
+        </ShellButton>
+
+        <ShellButton variant="primary" fullWidth onClick={() => onNavigate('veredicto')}>
+          PEDIR VEREDICTO AL CLON
+        </ShellButton>
+      </section>
 
       {statusMessage ? <p className="reto-status">{statusMessage}</p> : null}
 
-      <blockquote className="doctrine-quote">
-        “Si trabajas diario es inevitable tener resultados; si no, es inevitable fracasar.”
-      </blockquote>
-
-      <ShellButton variant="secondary" fullWidth onClick={saveDailyLog}>
-        {isSavingLog ? 'GUARDANDO...' : 'GUARDAR BITÁCORA'}
-      </ShellButton>
-
-      <ShellButton variant="primary" fullWidth onClick={() => onNavigate('veredicto')}>
-        PEDIR VEREDICTO AL CLON
-      </ShellButton>
-
       <BottomNav current="reto" onNavigate={onNavigate} />
     </section>
+  );
+}
+
+function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
+  const completed = [
+    log.fIntelectual,
+    log.fEspiritual,
+    log.fFisico,
+    log.fEconomico,
+    log.fSocialAtraccion,
+  ].filter(Boolean).length;
+
+  return (
+    <article className="reto-history-row">
+      <div>
+        <strong>{log.logDate}</strong>
+        <p>{log.bitacora || 'Sin bitácora escrita'}</p>
+      </div>
+      <span>{completed}/5</span>
+    </article>
   );
 }
 
@@ -719,10 +815,26 @@ function DelphiEmbed() {
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [emailTestStatus, setEmailTestStatus] = useState('');
+  const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
 
   const handleLogout = () => {
     clearAuthSession();
     onNavigate('login');
+  };
+
+  const handleSendEmailTest = async () => {
+    setEmailTestStatus('');
+    setIsSendingEmailTest(true);
+
+    try {
+      await sendBrevoTestEmail();
+      setEmailTestStatus('Email de prueba enviado.');
+    } catch (error) {
+      setEmailTestStatus(error instanceof Error ? error.message : 'No se pudo enviar el email de prueba.');
+    } finally {
+      setIsSendingEmailTest(false);
+    }
   };
 
   useEffect(() => {
@@ -801,6 +913,15 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
           <span>Fase 3</span>
           <strong>Videoteca · Hermandad</strong>
         </div>
+      </div>
+
+      <div className="profile-card">
+        <span className="profile-card__eyebrow">Brevo</span>
+        <strong>Email de prueba</strong>
+        <p>{emailTestStatus || 'Enviar prueba a israelrosassalinas@hotmail.com'}</p>
+        <ShellButton variant="secondary" fullWidth onClick={handleSendEmailTest}>
+          {isSendingEmailTest ? 'ENVIANDO...' : 'ENVIAR TEST'}
+        </ShellButton>
       </div>
 
       <ShellButton variant="secondary" fullWidth onClick={handleLogout}>
@@ -921,6 +1042,25 @@ function VideoIcon() {
     <SvgIcon viewBox="0 0 24 24">
       <path d="M4 6h11v12H4V6Z" />
       <path d="m15 10 5-3v10l-5-3" />
+    </SvgIcon>
+  );
+}
+
+function EditIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 20h4l11-11-4-4L4 16v4Z" />
+      <path d="m13 7 4 4" />
+    </SvgIcon>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 12a8 8 0 1 0 3-6" />
+      <path d="M4 4v6h6" />
+      <path d="M12 8v5l3 2" />
     </SvgIcon>
   );
 }

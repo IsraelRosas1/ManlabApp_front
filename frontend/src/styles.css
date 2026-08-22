@@ -106,6 +106,10 @@ img {
   gap: 24px;
 }
 
+.reto-dashboard {
+  gap: 16px;
+}
+
 .login-mark {
   display: grid;
   place-items: center;
@@ -159,6 +163,25 @@ img {
 .auth-form {
   display: grid;
   gap: 16px;
+}
+
+.auth-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.auth-mode-toggle button {
+  min-height: 48px;
+  color: rgba(245, 240, 232, 0.58);
+  cursor: pointer;
+}
+
+.auth-mode-toggle button.is-active {
+  background: rgba(212, 168, 87, 0.16);
+  color: var(--oro);
 }
 
 .field {
@@ -243,6 +266,13 @@ img {
 .auth-error {
   margin: -4px 0 0;
   color: #e8a47b;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.auth-success {
+  margin: -4px 0 0;
+  color: #42d17b;
   font-size: 0.92rem;
   line-height: 1.4;
 }
@@ -556,6 +586,54 @@ img {
   letter-spacing: 0.12em;
 }
 
+.reto-fronts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reto-fronts-header > span {
+  color: rgba(245, 240, 232, 0.62);
+  font-size: 0.88rem;
+}
+
+.reto-card {
+  display: grid;
+  gap: 14px;
+  scroll-margin-top: 18px;
+  border: 1px solid rgba(212, 168, 87, 0.45);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.reto-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reto-card__header h3,
+.reto-mini-menu h3 {
+  margin: 0;
+  color: var(--oro);
+  font-size: 0.92rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.reto-card__header span {
+  color: rgba(245, 240, 232, 0.62);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.reto-mini-menu {
+  gap: 14px;
+}
+
 .fronts-list {
   display: grid;
   gap: 2px;
@@ -635,6 +713,78 @@ img {
   color: rgba(245, 240, 232, 0.62);
   font-size: 0.92rem;
   line-height: 1.4;
+}
+
+.reto-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.reto-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.reto-history-row strong {
+  display: block;
+  color: var(--crema);
+  font-size: 0.92rem;
+}
+
+.reto-history-row p {
+  margin: 4px 0 0;
+  color: rgba(245, 240, 232, 0.54);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reto-history-row > span {
+  color: var(--oro);
+  font-weight: 800;
+}
+
+.reto-empty-state {
+  margin: 0;
+  color: rgba(245, 240, 232, 0.52);
+  font-size: 0.9rem;
+}
+
+.reto-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reto-summary-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 86px;
+  align-content: center;
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.reto-summary-grid strong {
+  color: var(--oro);
+  font-family: var(--font-impacto);
+  font-size: 1.6rem;
+  font-weight: 400;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.reto-summary-grid span {
+  color: rgba(245, 240, 232, 0.62);
+  font-size: 0.82rem;
 }
 
 .doctrine-quote {

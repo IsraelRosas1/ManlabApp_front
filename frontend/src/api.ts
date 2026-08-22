@@ -29,6 +29,20 @@ export function apiUrl(path: string) {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+async function getResponseErrorMessage(response: Response) {
+  const text = await response.text();
+  let message = text;
+
+  try {
+    const json = JSON.parse(text) as { error?: string };
+    message = json.error || text;
+  } catch {
+    message = text;
+  }
+
+  return message;
+}
+
 export async function getIdentityMe(loginResponse: LoginResponse) {
   const response = await fetch(apiUrl('/api/identity/me'), {
     headers: {
@@ -41,6 +55,26 @@ export async function getIdentityMe(loginResponse: LoginResponse) {
   }
 
   return (await response.json()) as IdentityMe;
+}
+
+export async function registerUser(email: string, password: string) {
+  const response = await fetch(apiUrl('/api/identity/register'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await getResponseErrorMessage(response);
+    throw new Error(error || 'Could not create account');
+  }
+
+  return true;
 }
 
 export type RetoDailyLog = {
@@ -83,6 +117,13 @@ export function getTodayLogDate() {
   const today = new Date();
   const timezoneOffset = today.getTimezoneOffset() * 60000;
   return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
+export function getLocalDateOffset(daysOffset: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysOffset);
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
 }
 
 function getDailyLogIdentity() {
@@ -148,6 +189,20 @@ export async function getRetoDailyLog(logDate = getTodayLogDate()) {
   return (await response.json()) as RetoDailyLog;
 }
 
+export async function getRetoLogsFromTo(from: string, to: string) {
+  const response = await fetch(`${dailyLogsUrl()}/from/${from}/to/${to}`, {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Could not load reto logs');
+  }
+
+  return (await response.json()) as RetoDailyLog[];
+}
+
 export async function createRetoDailyLog(data: RetoDailyLogCreate) {
   const response = await fetch(dailyLogsUrl(), {
     method: 'POST',
@@ -208,4 +263,25 @@ export async function getRetoStreak() {
   }
 
   return (await response.json()) as RetoStreak;
+}
+
+export async function sendBrevoTestEmail() {
+  const response = await fetch(apiUrl('/api/email/test'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify({
+      toEmail: 'israelrosassalinas@hotmail.com',
+      toName: 'Israel',
+      subject: 'Brevo test from Manlab',
+      htmlContent: '<h1>It works</h1><p>This email was sent from the ASP.NET backend.</p>',
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await getResponseErrorMessage(response);
+    throw new Error(message || `Could not send Brevo test email (${response.status})`);
+  }
 }
