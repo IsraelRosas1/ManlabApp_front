@@ -15,12 +15,17 @@ export type IdentityMe = {
   currentDayIndex: number;
   startDate: string;
   status: string;
+  subscriptionStatus: string;
+  currentPeriodEnd: string;
+  planCode: string;
 };
 
 type AuthSession = LoginResponse & {
   expiresAt: number;
   identity?: IdentityMe;
 };
+
+export const SUBSCRIPTION_EXPIRED_MESSAGE = 'Tu suscripción expiró. Renueva para continuar.';
 
 export function readAuthSession(): AuthSession | null {
   if (typeof window === 'undefined') {
@@ -50,6 +55,22 @@ export function saveAuthSession(loginResponse: LoginResponse, identity?: Identit
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
 
+export function updateAuthIdentity(identity: IdentityMe) {
+  const session = readAuthSession();
+
+  if (!session) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify({
+      ...session,
+      identity,
+    }),
+  );
+}
+
 export function clearAuthSession() {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -66,10 +87,31 @@ export function getIdentity() {
   return session?.identity ?? null;
 }
 
+export function hasActiveSubscription(identity?: IdentityMe | null) {
+  if (!identity) {
+    return false;
+  }
+
+  if (identity.subscriptionStatus?.toLowerCase() !== 'active') {
+    return false;
+  }
+
+  if (!identity.currentPeriodEnd) {
+    return true;
+  }
+
+  const currentPeriodEnd = new Date(identity.currentPeriodEnd).getTime();
+  if (!Number.isNaN(currentPeriodEnd) && currentPeriodEnd <= Date.now()) {
+    return false;
+  }
+
+  return true;
+}
+
 export function isAuthenticated() {
   const session = readAuthSession();
 
-  if (!session?.accessToken || session.expiresAt <= Date.now()) {
+  if (!session?.accessToken || session.expiresAt <= Date.now() || !hasActiveSubscription(session.identity)) {
     clearAuthSession();
     return false;
   }

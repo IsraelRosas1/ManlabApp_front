@@ -10,6 +10,7 @@ import {
   type WeakLink,
   checkApiConnection,
   createRetoDailyLog,
+  getCurrentIdentityMe,
   getIdentityMe,
   getLocalDateOffset,
   getRetoDailyLog,
@@ -22,13 +23,23 @@ import {
   sendBrevoTestEmail,
   updateRetoDailyLog,
 } from './api';
-import { clearAuthSession, getIdentity, isAuthenticated, type LoginResponse, saveAuthSession } from './auth';
+import {
+  SUBSCRIPTION_EXPIRED_MESSAGE,
+  clearAuthSession,
+  getIdentity,
+  hasActiveSubscription,
+  isAuthenticated,
+  type LoginResponse,
+  saveAuthSession,
+  updateAuthIdentity,
+} from './auth';
 
 type ScreenKey = 'login' | 'home' | 'reto' | 'notifications' | 'clon' | 'perfil' | 'veredicto';
 
 type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
 
 const protectedScreens: ScreenKey[] = ['home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
+const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 type TabButtonProps = {
   current: ScreenKey;
@@ -204,6 +215,58 @@ function useScreen() {
 
 export default function App() {
   const { screen, navigate } = useScreen();
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+
+  useEffect(() => {
+    if (screen === 'login' || !isAuthenticated()) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const checkSubscription = async () => {
+      if (!isAuthenticated()) {
+        return;
+      }
+
+      try {
+        const identity = await getCurrentIdentityMe();
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (!hasActiveSubscription(identity)) {
+          setIsSubscriptionExpired(true);
+          clearAuthSession();
+          window.location.hash = '#login';
+          return;
+        }
+
+        updateAuthIdentity(identity);
+      } catch {
+        // Keep the user in the app on temporary network/API failures.
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void checkSubscription();
+      }
+    };
+
+    void checkSubscription();
+    const intervalId = window.setInterval(checkSubscription, SUBSCRIPTION_CHECK_INTERVAL_MS);
+    window.addEventListener('focus', checkSubscription);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', checkSubscription);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [screen]);
 
   return (
     <div className="app-shell">
@@ -223,6 +286,25 @@ export default function App() {
         ) : (
           <VeredictoScreen onBack={() => navigate('reto')} />
         )}
+      </div>
+      {isSubscriptionExpired ? <SubscriptionExpiredModal onReturnToLogin={() => setIsSubscriptionExpired(false)} /> : null}
+    </div>
+  );
+}
+
+function SubscriptionExpiredModal({ onReturnToLogin }: { onReturnToLogin: () => void }) {
+  return (
+    <div className="subscription-expired-backdrop" role="presentation">
+      <div className="subscription-expired-modal" role="alertdialog" aria-modal="true" aria-labelledby="subscription-expired-title">
+        <span className="subscription-expired-modal__icon" aria-hidden="true">
+          !
+        </span>
+        <h2 id="subscription-expired-title">Suscripción expirada</h2>
+        <p>{SUBSCRIPTION_EXPIRED_MESSAGE}</p>
+        <p>Tu acceso queda bloqueado hasta que la suscripción sea renovada.</p>
+        <button type="button" onClick={onReturnToLogin}>
+          Ya renové, iniciar sesión
+        </button>
       </div>
     </div>
   );
@@ -273,6 +355,11 @@ function LoginScreen({
 
       const loginResponse = (await response.json()) as LoginResponse;
       const identity = await getIdentityMe(loginResponse);
+
+      if (!hasActiveSubscription(identity)) {
+        clearAuthSession();
+        throw new Error(SUBSCRIPTION_EXPIRED_MESSAGE);
+      }
 
       saveAuthSession(loginResponse, identity);
       onEnter();

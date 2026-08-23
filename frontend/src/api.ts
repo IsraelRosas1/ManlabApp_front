@@ -81,6 +81,20 @@ export async function getIdentityMe(loginResponse: LoginResponse) {
   return (await response.json()) as IdentityMe;
 }
 
+export async function getCurrentIdentityMe() {
+  const response = await fetch(apiUrl('/api/identity/me'), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo cargar la identidad del usuario.');
+  }
+
+  return (await response.json()) as IdentityMe;
+}
+
 export async function registerUser(email: string, password: string) {
   const response = await fetch(apiUrl('/api/identity/register'), {
     method: 'POST',

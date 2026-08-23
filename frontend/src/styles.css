@@ -756,6 +756,66 @@ img {
   line-height: 1.45;
 }
 
+.subscription-expired-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.subscription-expired-modal {
+  width: min(100%, 390px);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  border: 1px solid rgba(212, 168, 87, 0.58);
+  border-radius: 14px;
+  padding: 24px 20px;
+  background: #11100f;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.subscription-expired-modal__icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(212, 168, 87, 0.58);
+  border-radius: 999px;
+  color: var(--oro);
+  font-weight: 900;
+}
+
+.subscription-expired-modal h2 {
+  margin: 0;
+  color: var(--oro);
+  font-family: var(--font-impacto);
+  font-size: 1.85rem;
+  font-weight: 400;
+}
+
+.subscription-expired-modal p {
+  margin: 0;
+  color: rgba(245, 240, 232, 0.78);
+  line-height: 1.45;
+}
+
+.subscription-expired-modal button {
+  min-height: 46px;
+  width: 100%;
+  border: 1px solid rgba(212, 168, 87, 0.68);
+  border-radius: 8px;
+  background: var(--oro);
+  color: #0c0c0c;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .bitacora-example {
   display: grid;
   gap: 12px;
@@ -1211,14 +1271,32 @@ img {
 
 @media (min-width: 900px) {
   .app-shell {
-    padding: 0;
+    padding: 24px;
+  }
+
+  .phone-frame {
+    width: min(800px, calc(100vw - 32px));
+    height: calc(100svh - 48px);
+    min-height: 720px;
+    max-height: 932px;
+    border: 1px solid rgba(212, 168, 87, 0.26);
+    border-radius: 32px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72);
+  }
+
+  .screen {
+    min-height: 100%;
+    height: 100%;
   }
 
   .bottom-nav {
     left: 50%;
     right: auto;
-    width: min(100%, 430px);
+    bottom: 24px;
+    width: min(800px, calc(100vw - 32px));
     transform: translateX(-50%);
     padding-inline: 20px;
+    border-bottom-right-radius: 32px;
+    border-bottom-left-radius: 32px;
   }
 }
