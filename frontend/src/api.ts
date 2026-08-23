@@ -145,6 +145,19 @@ export type RetoStreak = {
   longestStreak: number;
 };
 
+export type AppNotification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  url?: string | null;
+  imageUrl?: string | null;
+  icon?: string | null;
+  status?: string;
+  sentAt?: string | null;
+  createdAt: string;
+};
+
 export class DailyLogNotFoundError extends Error {
   constructor() {
     super('No existe la bitácora para esta fecha.');
@@ -301,6 +314,22 @@ export async function getRetoStreak() {
   }
 
   return (await response.json()) as RetoStreak;
+}
+
+export async function getLatestAppNotifications(limit = 5) {
+  const response = await fetch(apiUrl('/api/admin/notifications'), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudieron cargar las notificaciones.');
+  }
+
+  return ((await response.json()) as AppNotification[])
+    .filter((notification) => notification.status === undefined || notification.status === 'sent')
+    .slice(0, limit);
 }
 
 export async function sendBrevoTestEmail() {

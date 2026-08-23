@@ -88,8 +88,9 @@ export type SendAdminNotificationRequest = {
   type: AdminNotificationType;
   title: string;
   message: string;
-  url: string;
+  url: string | null;
   imageUrl: string | null;
+  icon: string | null;
   userIds: string[] | null;
 };
 
@@ -98,8 +99,9 @@ export type AdminNotification = {
   type: AdminNotificationType;
   title: string;
   message: string;
-  url: string;
+  url: string | null;
   imageUrl: string | null;
+  icon?: string | null;
   source: string;
   status: string;
   scheduledAt: string | null;
@@ -125,6 +127,16 @@ export type AdminNotificationDelivery = {
 
 export type AdminNotificationDetail = AdminNotification & {
   deliveries: AdminNotificationDelivery[];
+};
+
+export type UpdateAdminNotificationRequest = {
+  type: AdminNotificationType;
+  title: string;
+  message: string;
+  url: string | null;
+  imageUrl: string | null;
+  status: string;
+  scheduledAt: string | null;
 };
 
 export type LoginResponse = {
@@ -297,6 +309,25 @@ export async function getAdminNotificationDetail(token: string, notificationId: 
   }
 
   return (await response.json()) as AdminNotificationDetail;
+}
+
+export async function updateAdminNotification(
+  token: string,
+  notificationId: string,
+  data: UpdateAdminNotificationRequest,
+) {
+  const response = await fetch(apiUrl(`/api/admin/notifications/${notificationId}`), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
 }
 
 export async function loginAdmin(email: string, password: string) {

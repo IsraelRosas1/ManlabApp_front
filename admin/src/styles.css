@@ -452,6 +452,34 @@ td span {
   font-weight: 800;
 }
 
+.notification-editor {
+  display: grid;
+  grid-template-columns: 170px 140px 190px minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.notification-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.notification-editor__wide {
+  grid-column: span 2;
+}
+
+.notification-editor button {
+  min-height: 42px;
+  border: 1px solid rgba(212, 168, 87, 0.54);
+  background: var(--gold);
+  color: #15100a;
+  padding: 0 16px;
+  font-weight: 800;
+}
+
 .checkbox-field {
   min-height: 42px;
   grid-template-columns: auto 1fr;
@@ -520,12 +548,14 @@ td span {
   .filters--entitlements,
   .grant-form,
   .notification-form,
+  .notification-editor,
   .subscription-editor,
   .stats-grid {
     grid-template-columns: 1fr;
   }
 
-  .notification-form__wide {
+  .notification-form__wide,
+  .notification-editor__wide {
     grid-column: auto;
   }
 }

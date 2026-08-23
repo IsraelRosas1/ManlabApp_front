@@ -4,6 +4,7 @@ import {
   API_BASE_URL,
   DailyLogNotFoundError,
   type ApiStatus,
+  type AppNotification,
   type RetoDailyLog,
   type RetoDailyLogPatch,
   type RetoStreak,
@@ -12,6 +13,7 @@ import {
   createRetoDailyLog,
   getCurrentIdentityMe,
   getIdentityMe,
+  getLatestAppNotifications,
   getLocalDateOffset,
   getRetoDailyLog,
   getRetoLogsFromTo,
@@ -122,6 +124,33 @@ const dailyTip = {
 
 const verdictText =
   'Tres días sin pisar el gimnasio, y el resto del circuito ya lo siente. Tu economía se sostuvo, tu palabra con Dios se sostuvo — pero el cuerpo es la base, y una base que cede arrastra todo lo que construiste encima. No es cansancio. Es una decisión que estás tomando cada mañana que te quedas en la cama.';
+
+const fallbackHomeNotifications: AppNotification[] = [
+  {
+    id: 'mock-video',
+    type: 'youtube_new_video',
+    title: 'Nuevo video subido',
+    message: 'Contenido ManLab',
+    icon: 'video',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'mock-book',
+    type: 'ebook',
+    title: 'Nuevo ebook: Maestría en Convencimiento',
+    message: 'Biblioteca ManLab',
+    icon: 'book',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'mock-tip',
+    type: 'daily_tip',
+    title: 'Nuevo consejo del día',
+    message: 'Consejo del día',
+    icon: 'bulb',
+    createdAt: new Date().toISOString(),
+  },
+];
 
 function getReverseRetoDay(fallbackDayIndex: number) {
   const identity = getIdentity();
@@ -802,6 +831,7 @@ function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
 
 function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [homeNotifications, setHomeNotifications] = useState<AppNotification[]>(fallbackHomeNotifications);
   const [notificationStatus, setNotificationStatus] = useState('');
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const reverseRetoDay = getReverseRetoDay(1);
@@ -818,6 +848,18 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       .catch(() => {
         if (isMounted) {
           setStreak({ currentStreak: 0, longestStreak: 0 });
+        }
+      });
+
+    getLatestAppNotifications(5)
+      .then((notifications) => {
+        if (isMounted) {
+          setHomeNotifications(notifications.slice(0, 5));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setHomeNotifications(fallbackHomeNotifications);
         }
       });
 
@@ -893,9 +935,9 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       <section className="home-section">
         <h3>ÚLTIMAS NOTIFICACIONES</h3>
         <div className="home-alerts">
-          <NotificationRow icon={<VideoIcon />} title="Nuevo video subido" meta="Hace 5 minutos" />
-          <NotificationRow icon={<BookIcon />} title="Nuevo ebook: Maestría en Convencimiento" meta="Hoy" />
-          <NotificationRow icon={<BulbIcon />} title="Nuevo consejo del día" meta="Hoy" />
+          {homeNotifications.slice(0, 5).map((notification) => (
+            <NotificationRow key={notification.id} notification={notification} />
+          ))}
         </div>
       </section>
 
@@ -913,13 +955,84 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
   );
 }
 
-function NotificationRow({ icon, title, meta }: { icon: ReactNode; title: string; meta: string }) {
+function getNotificationIcon(notification: AppNotification) {
+  const icon = notification.icon?.toLowerCase();
+  const type = notification.type?.toLowerCase() || '';
+  const title = notification.title?.toLowerCase() || '';
+
+  if (icon === 'book' || type.includes('ebook') || title.includes('ebook') || title.includes('libro')) {
+    return <BookIcon />;
+  }
+
+  if (icon === 'bulb' || icon === 'light' || type.includes('consejo') || title.includes('consejo')) {
+    return <BulbIcon />;
+  }
+
+  if (icon === 'video' || icon === 'live' || type.includes('video') || type.includes('live')) {
+    return <VideoIcon />;
+  }
+
+  return <BellIcon />;
+}
+
+function getNotificationMeta(notification: AppNotification) {
+  const dateValue = notification.sentAt || notification.createdAt;
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Reciente';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) {
+    return 'Ahora';
+  }
+
+  if (diffMinutes < 60) {
+    return `Hace ${diffMinutes} min`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `Hace ${diffHours} h`;
+  }
+
+  return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+}
+
+function NotificationRow({ notification }: { notification: AppNotification }) {
+  const [didImageFail, setDidImageFail] = useState(false);
+  const shouldShowImage = Boolean(notification.imageUrl && !didImageFail);
+
+  const handleClick = () => {
+    if (notification.url) {
+      window.open(notification.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
-    <article className="home-alert-row">
-      <span className="home-alert-row__icon">{icon}</span>
+    <article
+      className={`home-alert-row ${notification.url ? 'home-alert-row--clickable' : ''}`}
+      onClick={handleClick}
+    >
+      <span className="home-alert-row__icon">
+        {shouldShowImage ? (
+          <img
+            src={notification.imageUrl || ''}
+            alt=""
+            className="home-alert-row__image"
+            onError={() => setDidImageFail(true)}
+          />
+        ) : (
+          getNotificationIcon(notification)
+        )}
+      </span>
       <div>
-        <strong>{title}</strong>
-        <p>{meta}</p>
+        <strong>{notification.title}</strong>
+        {notification.message ? <span className="home-alert-row__message">{notification.message}</span> : null}
+        <p>{getNotificationMeta(notification)}</p>
       </div>
       <ArrowLeftIcon />
     </article>

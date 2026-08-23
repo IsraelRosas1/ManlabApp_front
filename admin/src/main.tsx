@@ -9,6 +9,7 @@ import {
   grantManualEntitlement,
   loginAdmin,
   sendAdminNotification,
+  updateAdminNotification,
   updateUserSubscription,
   type AdminEntitlement,
   type AdminEntitlementFilters,
@@ -20,6 +21,7 @@ import {
   type AdminUserFilters,
   type GrantEntitlementRequest,
   type SendAdminNotificationRequest,
+  type UpdateAdminNotificationRequest,
   type UpdateSubscriptionRequest,
 } from './api';
 import './styles.css';
@@ -48,7 +50,7 @@ const defaultGrantForm: GrantEntitlementRequest = {
 
 const notificationPresets: Record<
   AdminNotificationType,
-  Pick<SendAdminNotificationRequest, 'type' | 'title' | 'message' | 'url' | 'imageUrl' | 'userIds'>
+  SendAdminNotificationRequest
 > = {
   live_alert: {
     type: 'live_alert',
@@ -56,6 +58,7 @@ const notificationPresets: Record<
     message: 'Entra al LIVE de Manlab ahora.',
     url: 'https://your-live-url.com',
     imageUrl: null,
+    icon: 'video',
     userIds: null,
   },
   tiktok_new_video: {
@@ -64,6 +67,7 @@ const notificationPresets: Record<
     message: 'Ya está disponible el nuevo video de Manlab.',
     url: 'https://www.tiktok.com/@youraccount/video/',
     imageUrl: null,
+    icon: 'video',
     userIds: null,
   },
   instagram_new_video: {
@@ -72,6 +76,7 @@ const notificationPresets: Record<
     message: 'Mira el nuevo contenido de Manlab.',
     url: 'https://www.instagram.com/reel/',
     imageUrl: null,
+    icon: 'video',
     userIds: null,
   },
   youtube_new_video: {
@@ -80,6 +85,7 @@ const notificationPresets: Record<
     message: 'Ya está disponible el nuevo video.',
     url: 'https://www.youtube.com/watch?v=',
     imageUrl: 'https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg',
+    icon: 'video',
     userIds: null,
   },
 };
@@ -87,6 +93,8 @@ const notificationPresets: Record<
 const defaultNotificationForm: SendAdminNotificationRequest = notificationPresets.live_alert;
 const subscriptionStatuses = ['active', 'past_due', 'canceled', 'none'];
 const planCodes = ['mensual', 'anual', 'fundador'];
+const notificationIcons = ['video', 'book', 'bulb', 'bell', 'live'];
+const notificationStatuses = ['draft', 'scheduled', 'sent', 'failed', 'canceled'];
 const ANNOUNCEMENT_TIMEOUT_MS = 4000;
 
 function formatDate(value: string) {
@@ -133,6 +141,27 @@ function toDateInputValue(value: string) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function toDateTimeInputValue(value: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 16);
+  }
+
+  return date.toISOString().slice(0, 16);
+}
+
+function toUtcDateTime(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  return `${value}:00Z`;
 }
 
 function App() {
@@ -329,7 +358,8 @@ function App() {
       await sendAdminNotification(token, {
         ...notificationForm,
         imageUrl: notificationForm.imageUrl?.trim() || null,
-        url: notificationForm.url.trim(),
+        icon: notificationForm.icon?.trim() || null,
+        url: notificationForm.url?.trim() || null,
         title: notificationForm.title.trim(),
         message: notificationForm.message.trim(),
         userIds: null,
@@ -359,6 +389,31 @@ function App() {
       setErrorMessage(error instanceof Error ? error.message : 'No se pudo cargar el detalle del aviso.');
     } finally {
       setIsLoadingNotificationDetail(false);
+    }
+  };
+
+  const handleUpdateNotification = async (
+    notificationId: string,
+    data: UpdateAdminNotificationRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => {
+    if (!token) {
+      setErrorMessage('Inicia sesión como admin para editar avisos.');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await updateAdminNotification(token, notificationId, data);
+      setSuccessMessage('Aviso actualizado.');
+      await loadNotifications();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo actualizar el aviso.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -736,6 +791,19 @@ function App() {
                     required
                   />
                 </label>
+                <label>
+                  Icono app
+                  <select
+                    value={notificationForm.icon || 'bell'}
+                    onChange={(event) => updateNotificationForm('icon', event.target.value)}
+                  >
+                    {notificationIcons.map((icon) => (
+                      <option key={icon} value={icon}>
+                        {icon}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="notification-form__wide">
                   Mensaje
                   <textarea
@@ -748,9 +816,9 @@ function App() {
                   URL
                   <input
                     type="url"
-                    value={notificationForm.url}
+                    value={notificationForm.url || ''}
                     onChange={(event) => updateNotificationForm('url', event.target.value)}
-                    required
+                    placeholder="Opcional"
                   />
                 </label>
                 <label className="notification-form__wide">
@@ -784,6 +852,7 @@ function App() {
                 isLoading={isLoadingNotifications}
                 notifications={notifications}
                 onSelectNotification={(notificationId) => void loadNotificationDetail(notificationId)}
+                onUpdateNotification={handleUpdateNotification}
               />
             </section>
 
@@ -1132,11 +1201,17 @@ function NotificationsTable({
   isConnected,
   isLoading,
   onSelectNotification,
+  onUpdateNotification,
 }: {
   notifications: AdminNotification[];
   isConnected: boolean;
   isLoading: boolean;
   onSelectNotification: (notificationId: string) => void;
+  onUpdateNotification: (
+    notificationId: string,
+    data: UpdateAdminNotificationRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => Promise<void>;
 }) {
   return (
     <div className="table-wrap">
@@ -1151,33 +1226,21 @@ function NotificationsTable({
             <th>Fallos</th>
             <th>Abiertos</th>
             <th>Detalle</th>
+            <th>Editar</th>
           </tr>
         </thead>
         <tbody>
           {notifications.map((notification) => (
-            <tr key={notification.id}>
-              <td>
-                <strong>{notification.title}</strong>
-                <span>{notification.message}</span>
-              </td>
-              <td>{notification.type}</td>
-              <td>
-                <StatusBadge status={notification.status} />
-              </td>
-              <td>{formatDate(notification.sentAt || notification.createdAt)}</td>
-              <td>{notification.sentDeliveries} / {notification.totalDeliveries}</td>
-              <td>{notification.failedDeliveries}</td>
-              <td>{notification.openedDeliveries}</td>
-              <td>
-                <button className="table-action" type="button" onClick={() => onSelectNotification(notification.id)}>
-                  Fallos
-                </button>
-              </td>
-            </tr>
+            <NotificationHistoryRow
+              key={notification.id}
+              notification={notification}
+              onSelectNotification={onSelectNotification}
+              onUpdateNotification={onUpdateNotification}
+            />
           ))}
           {!isLoading && notifications.length === 0 ? (
             <tr>
-              <td className="empty-state" colSpan={8}>
+              <td className="empty-state" colSpan={9}>
                 {isConnected ? 'No hay avisos enviados.' : 'Inicia sesión como admin para cargar avisos.'}
               </td>
             </tr>
@@ -1185,6 +1248,161 @@ function NotificationsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function NotificationHistoryRow({
+  notification,
+  onSelectNotification,
+  onUpdateNotification,
+}: {
+  notification: AdminNotification;
+  onSelectNotification: (notificationId: string) => void;
+  onUpdateNotification: (
+    notificationId: string,
+    data: UpdateAdminNotificationRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [form, setForm] = React.useState<UpdateAdminNotificationRequest>({
+    type: notification.type,
+    title: notification.title,
+    message: notification.message,
+    url: notification.url,
+    imageUrl: notification.imageUrl,
+    status: notification.status,
+    scheduledAt: toDateTimeInputValue(notification.scheduledAt),
+  });
+
+  React.useEffect(() => {
+    setForm({
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      url: notification.url,
+      imageUrl: notification.imageUrl,
+      status: notification.status,
+      scheduledAt: toDateTimeInputValue(notification.scheduledAt),
+    });
+  }, [notification]);
+
+  const updateForm = (key: keyof UpdateAdminNotificationRequest, value: string | null) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    await onUpdateNotification(
+      notification.id,
+      {
+        ...form,
+        title: form.title.trim(),
+        message: form.message.trim(),
+        url: form.url?.trim() || null,
+        imageUrl: form.imageUrl?.trim() || null,
+        scheduledAt: toUtcDateTime(form.scheduledAt || ''),
+      },
+      setIsSaving,
+    );
+  };
+
+  return (
+    <>
+      <tr>
+        <td>
+          <strong>{notification.title}</strong>
+          <span>{notification.message}</span>
+        </td>
+        <td>{notification.type}</td>
+        <td>
+          <StatusBadge status={notification.status} />
+        </td>
+        <td>{formatDate(notification.sentAt || notification.createdAt)}</td>
+        <td>{notification.sentDeliveries} / {notification.totalDeliveries}</td>
+        <td>{notification.failedDeliveries}</td>
+        <td>{notification.openedDeliveries}</td>
+        <td>
+          <button className="table-action" type="button" onClick={() => onSelectNotification(notification.id)}>
+            Fallos
+          </button>
+        </td>
+        <td>
+          <button className="table-action" type="button" onClick={() => setIsEditing((current) => !current)}>
+            {isEditing ? 'Cerrar' : 'Editar'}
+          </button>
+        </td>
+      </tr>
+      {isEditing ? (
+        <tr>
+          <td colSpan={9} className="inline-editor-cell">
+            <form className="notification-editor" onSubmit={handleSubmit}>
+              <label>
+                Tipo
+                <select value={form.type} onChange={(event) => updateForm('type', event.target.value)}>
+                  <option value="live_alert">LIVE</option>
+                  <option value="tiktok_new_video">TikTok</option>
+                  <option value="instagram_new_video">Instagram</option>
+                  <option value="youtube_new_video">YouTube</option>
+                </select>
+              </label>
+              <label>
+                Estado
+                <select value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
+                  {notificationStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Programado
+                <input
+                  type="datetime-local"
+                  value={form.scheduledAt || ''}
+                  onChange={(event) => updateForm('scheduledAt', event.target.value)}
+                />
+              </label>
+              <label className="notification-editor__wide">
+                Título
+                <input value={form.title} onChange={(event) => updateForm('title', event.target.value)} required />
+              </label>
+              <label className="notification-editor__wide">
+                Descripción
+                <textarea value={form.message} onChange={(event) => updateForm('message', event.target.value)} required />
+              </label>
+              <label className="notification-editor__wide">
+                URL
+                <input
+                  type="url"
+                  value={form.url || ''}
+                  onChange={(event) => updateForm('url', event.target.value)}
+                  placeholder="Opcional"
+                />
+              </label>
+              <label className="notification-editor__wide">
+                Imagen
+                <input
+                  type="url"
+                  value={form.imageUrl || ''}
+                  onChange={(event) => updateForm('imageUrl', event.target.value)}
+                  placeholder="Opcional"
+                />
+              </label>
+              <button type="submit" disabled={isSaving}>
+                {isSaving ? 'Guardando' : 'Guardar'}
+              </button>
+            </form>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 
