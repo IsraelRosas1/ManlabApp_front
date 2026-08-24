@@ -153,6 +153,7 @@ export type AppNotification = {
   url?: string | null;
   imageUrl?: string | null;
   icon?: string | null;
+  source?: string | null;
   status?: string;
   sentAt?: string | null;
   createdAt: string;
@@ -364,8 +365,12 @@ export async function getLatestAppNotifications(limit = 5) {
     throw new Error('No se pudieron cargar las notificaciones.');
   }
 
+  const userReminderTypes = new Set(['reto_reminder', 'daily_reto_reminder', 'weak_link_warning']);
+
   return ((await response.json()) as AppNotification[])
     .filter((notification) => notification.status === undefined || notification.status === 'sent')
+    .filter((notification) => notification.source === undefined || notification.source === null || notification.source === 'admin')
+    .filter((notification) => !userReminderTypes.has(notification.type))
     .slice(0, limit);
 }
 

@@ -151,12 +151,9 @@ const planCodes = ['mensual', 'anual', 'fundador'];
 const notificationIcons = ['video', 'book', 'bulb', 'bell', 'live'];
 const notificationStatuses = ['draft', 'scheduled', 'sent', 'failed', 'canceled'];
 const notificationTypeOptions: Array<{ value: AdminNotificationType; label: string }> = [
-  { value: 'reto_reminder', label: 'Recordatorio Reto' },
   { value: 'live', label: 'LIVE' },
   { value: 'content', label: 'Contenido' },
-  { value: 'daily_reto_reminder', label: 'Reto diario' },
   { value: 'youtube_new_video', label: 'YouTube' },
-  { value: 'weak_link_warning', label: 'Eslabón débil' },
   { value: 'streak_broken', label: 'Racha rota' },
   { value: 'tiktok_new_video', label: 'TikTok' },
   { value: 'instagram_new_video', label: 'Instagram' },
