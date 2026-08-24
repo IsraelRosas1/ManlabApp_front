@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
+  deleteAdminNotification,
   getAdminEntitlements,
   getAdminNotificationDetail,
   getAdminNotifications,
@@ -52,6 +53,69 @@ const notificationPresets: Record<
   AdminNotificationType,
   SendAdminNotificationRequest
 > = {
+  reto_reminder: {
+    type: 'reto_reminder',
+    title: 'Recuerda tu Reto',
+    message: 'Completa tus cinco frentes de hoy antes de cerrar el día.',
+    url: null,
+    imageUrl: null,
+    icon: 'bell',
+    userIds: null,
+  },
+  live: {
+    type: 'live',
+    title: 'Estamos en vivo',
+    message: 'Entra al LIVE de Manlab ahora.',
+    url: null,
+    imageUrl: null,
+    icon: 'live',
+    userIds: null,
+  },
+  content: {
+    type: 'content',
+    title: 'Nuevo contenido disponible',
+    message: 'Ya hay nuevo contenido disponible dentro de Manlab.',
+    url: null,
+    imageUrl: null,
+    icon: 'book',
+    userIds: null,
+  },
+  daily_reto_reminder: {
+    type: 'daily_reto_reminder',
+    title: 'Tu Reto de hoy',
+    message: 'Registra tus disciplinas y escribe tu bitácora del día.',
+    url: null,
+    imageUrl: null,
+    icon: 'bell',
+    userIds: null,
+  },
+  youtube_new_video: {
+    type: 'youtube_new_video',
+    title: 'Nuevo video en YouTube',
+    message: 'Ya está disponible el nuevo video.',
+    url: 'https://www.youtube.com/watch?v=',
+    imageUrl: 'https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg',
+    icon: 'video',
+    userIds: null,
+  },
+  weak_link_warning: {
+    type: 'weak_link_warning',
+    title: 'Eslabón débil detectado',
+    message: 'Revisa el frente que más se te está cayendo esta semana.',
+    url: null,
+    imageUrl: null,
+    icon: 'bell',
+    userIds: null,
+  },
+  streak_broken: {
+    type: 'streak_broken',
+    title: 'Racha rota',
+    message: 'Retoma el Reto hoy y vuelve a construir tu racha.',
+    url: null,
+    imageUrl: null,
+    icon: 'bell',
+    userIds: null,
+  },
   live_alert: {
     type: 'live_alert',
     title: 'Estamos en vivo',
@@ -79,15 +143,6 @@ const notificationPresets: Record<
     icon: 'video',
     userIds: null,
   },
-  youtube_new_video: {
-    type: 'youtube_new_video',
-    title: 'Nuevo video en YouTube',
-    message: 'Ya está disponible el nuevo video.',
-    url: 'https://www.youtube.com/watch?v=',
-    imageUrl: 'https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg',
-    icon: 'video',
-    userIds: null,
-  },
 };
 
 const defaultNotificationForm: SendAdminNotificationRequest = notificationPresets.live_alert;
@@ -95,7 +150,20 @@ const subscriptionStatuses = ['active', 'past_due', 'canceled', 'none'];
 const planCodes = ['mensual', 'anual', 'fundador'];
 const notificationIcons = ['video', 'book', 'bulb', 'bell', 'live'];
 const notificationStatuses = ['draft', 'scheduled', 'sent', 'failed', 'canceled'];
+const notificationTypeOptions: Array<{ value: AdminNotificationType; label: string }> = [
+  { value: 'reto_reminder', label: 'Recordatorio Reto' },
+  { value: 'live', label: 'LIVE' },
+  { value: 'content', label: 'Contenido' },
+  { value: 'daily_reto_reminder', label: 'Reto diario' },
+  { value: 'youtube_new_video', label: 'YouTube' },
+  { value: 'weak_link_warning', label: 'Eslabón débil' },
+  { value: 'streak_broken', label: 'Racha rota' },
+  { value: 'tiktok_new_video', label: 'TikTok' },
+  { value: 'instagram_new_video', label: 'Instagram' },
+  { value: 'live_alert', label: 'LIVE alert' },
+];
 const ANNOUNCEMENT_TIMEOUT_MS = 4000;
+type NotificationSendMode = 'now' | 'scheduled';
 
 function formatDate(value: string) {
   if (!value) {
@@ -161,7 +229,12 @@ function toUtcDateTime(value: string) {
     return null;
   }
 
-  return `${value}:00Z`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return `${value}:00Z`;
+  }
+
+  return date.toISOString();
 }
 
 function App() {
@@ -175,6 +248,8 @@ function App() {
   const [grantForm, setGrantForm] = React.useState<GrantEntitlementRequest>(defaultGrantForm);
   const [notificationForm, setNotificationForm] =
     React.useState<SendAdminNotificationRequest>(defaultNotificationForm);
+  const [notificationSendMode, setNotificationSendMode] = React.useState<NotificationSendMode>('now');
+  const [notificationScheduledAt, setNotificationScheduledAt] = React.useState('');
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [entitlements, setEntitlements] = React.useState<AdminEntitlement[]>([]);
   const [notifications, setNotifications] = React.useState<AdminNotification[]>([]);
@@ -350,6 +425,11 @@ function App() {
       return;
     }
 
+    if (notificationSendMode === 'scheduled' && !notificationScheduledAt) {
+      setErrorMessage('Selecciona fecha y hora para programar el aviso.');
+      return;
+    }
+
     setIsSendingNotification(true);
     setErrorMessage('');
     setSuccessMessage('');
@@ -362,14 +442,43 @@ function App() {
         url: notificationForm.url?.trim() || null,
         title: notificationForm.title.trim(),
         message: notificationForm.message.trim(),
+        status: notificationSendMode === 'scheduled' ? 'scheduled' : undefined,
+        scheduledAt: notificationSendMode === 'scheduled' ? toUtcDateTime(notificationScheduledAt) : null,
         userIds: null,
       });
-      setSuccessMessage('Aviso enviado.');
+      setSuccessMessage(notificationSendMode === 'scheduled' ? 'Aviso programado.' : 'Aviso enviado.');
+      setNotificationScheduledAt('');
+      setNotificationSendMode('now');
       await loadNotifications();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'No se pudo enviar el aviso.');
     } finally {
       setIsSendingNotification(false);
+    }
+  };
+
+  const handleDeleteNotification = async (
+    notificationId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
+  ) => {
+    if (!token) {
+      setErrorMessage('Inicia sesión como admin para eliminar avisos.');
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await deleteAdminNotification(token, notificationId);
+      setSuccessMessage('Aviso eliminado.');
+      setNotificationDetail((current) => (current?.id === notificationId ? null : current));
+      await loadNotifications();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo eliminar el aviso.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -775,12 +884,13 @@ function App() {
                   Tipo
                   <select
                     value={notificationForm.type}
-                    onChange={(event) => selectNotificationPreset(event.target.value)}
+                    onChange={(event) => selectNotificationPreset(event.target.value as AdminNotificationType)}
                   >
-                    <option value="live_alert">LIVE</option>
-                    <option value="tiktok_new_video">TikTok</option>
-                    <option value="instagram_new_video">Instagram</option>
-                    <option value="youtube_new_video">YouTube</option>
+                    {notificationTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -803,6 +913,26 @@ function App() {
                       </option>
                     ))}
                   </select>
+                </label>
+                <label>
+                  Envío
+                  <select
+                    value={notificationSendMode}
+                    onChange={(event) => setNotificationSendMode(event.target.value as NotificationSendMode)}
+                  >
+                    <option value="now">Enviar ahora</option>
+                    <option value="scheduled">Programar</option>
+                  </select>
+                </label>
+                <label>
+                  Programar
+                  <input
+                    type="datetime-local"
+                    value={notificationScheduledAt}
+                    onChange={(event) => setNotificationScheduledAt(event.target.value)}
+                    disabled={notificationSendMode !== 'scheduled'}
+                    required={notificationSendMode === 'scheduled'}
+                  />
                 </label>
                 <label className="notification-form__wide">
                   Mensaje
@@ -853,6 +983,7 @@ function App() {
                 notifications={notifications}
                 onSelectNotification={(notificationId) => void loadNotificationDetail(notificationId)}
                 onUpdateNotification={handleUpdateNotification}
+                onDeleteNotification={handleDeleteNotification}
               />
             </section>
 
@@ -1202,6 +1333,7 @@ function NotificationsTable({
   isLoading,
   onSelectNotification,
   onUpdateNotification,
+  onDeleteNotification,
 }: {
   notifications: AdminNotification[];
   isConnected: boolean;
@@ -1211,6 +1343,10 @@ function NotificationsTable({
     notificationId: string,
     data: UpdateAdminNotificationRequest,
     setIsSaving: (isSaving: boolean) => void,
+  ) => Promise<void>;
+  onDeleteNotification: (
+    notificationId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
   ) => Promise<void>;
 }) {
   return (
@@ -1227,6 +1363,7 @@ function NotificationsTable({
             <th>Abiertos</th>
             <th>Detalle</th>
             <th>Editar</th>
+            <th>Eliminar</th>
           </tr>
         </thead>
         <tbody>
@@ -1236,11 +1373,12 @@ function NotificationsTable({
               notification={notification}
               onSelectNotification={onSelectNotification}
               onUpdateNotification={onUpdateNotification}
+              onDeleteNotification={onDeleteNotification}
             />
           ))}
           {!isLoading && notifications.length === 0 ? (
             <tr>
-              <td className="empty-state" colSpan={9}>
+              <td className="empty-state" colSpan={10}>
                 {isConnected ? 'No hay avisos enviados.' : 'Inicia sesión como admin para cargar avisos.'}
               </td>
             </tr>
@@ -1255,6 +1393,7 @@ function NotificationHistoryRow({
   notification,
   onSelectNotification,
   onUpdateNotification,
+  onDeleteNotification,
 }: {
   notification: AdminNotification;
   onSelectNotification: (notificationId: string) => void;
@@ -1263,9 +1402,14 @@ function NotificationHistoryRow({
     data: UpdateAdminNotificationRequest,
     setIsSaving: (isSaving: boolean) => void,
   ) => Promise<void>;
+  onDeleteNotification: (
+    notificationId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
+  ) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const [form, setForm] = React.useState<UpdateAdminNotificationRequest>({
     type: notification.type,
     title: notification.title,
@@ -1312,6 +1456,15 @@ function NotificationHistoryRow({
     );
   };
 
+  const handleDelete = async () => {
+    const shouldDelete = window.confirm(`Eliminar aviso "${notification.title}"?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    await onDeleteNotification(notification.id, setIsDeleting);
+  };
+
   return (
     <>
       <tr>
@@ -1337,18 +1490,32 @@ function NotificationHistoryRow({
             {isEditing ? 'Cerrar' : 'Editar'}
           </button>
         </td>
+        <td>
+          <button
+            className="table-action table-action--danger"
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Eliminando' : 'Eliminar'}
+          </button>
+        </td>
       </tr>
       {isEditing ? (
         <tr>
-          <td colSpan={9} className="inline-editor-cell">
+          <td colSpan={10} className="inline-editor-cell">
             <form className="notification-editor" onSubmit={handleSubmit}>
               <label>
                 Tipo
-                <select value={form.type} onChange={(event) => updateForm('type', event.target.value)}>
-                  <option value="live_alert">LIVE</option>
-                  <option value="tiktok_new_video">TikTok</option>
-                  <option value="instagram_new_video">Instagram</option>
-                  <option value="youtube_new_video">YouTube</option>
+                <select
+                  value={form.type}
+                  onChange={(event) => updateForm('type', event.target.value as AdminNotificationType)}
+                >
+                  {notificationTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>

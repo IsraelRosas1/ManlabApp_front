@@ -78,11 +78,16 @@ export type UpdateSubscriptionRequest = {
 };
 
 export type AdminNotificationType =
-  | 'live_alert'
+  | 'reto_reminder'
+  | 'live'
+  | 'content'
+  | 'daily_reto_reminder'
+  | 'youtube_new_video'
+  | 'weak_link_warning'
+  | 'streak_broken'
   | 'tiktok_new_video'
   | 'instagram_new_video'
-  | 'youtube_new_video'
-  | string;
+  | 'live_alert';
 
 export type SendAdminNotificationRequest = {
   type: AdminNotificationType;
@@ -91,6 +96,8 @@ export type SendAdminNotificationRequest = {
   url: string | null;
   imageUrl: string | null;
   icon: string | null;
+  status?: string;
+  scheduledAt?: string | null;
   userIds: string[] | null;
 };
 
@@ -323,6 +330,19 @@ export async function updateAdminNotification(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+}
+
+export async function deleteAdminNotification(token: string, notificationId: string) {
+  const response = await fetch(apiUrl(`/api/admin/notifications/${notificationId}`), {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   if (!response.ok) {

@@ -424,6 +424,17 @@ td span {
   font-weight: 800;
 }
 
+.table-action--danger {
+  border-color: rgba(255, 107, 107, 0.42);
+  background: rgba(255, 107, 107, 0.1);
+  color: #ffb4b4;
+}
+
+.table-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .inline-editor-cell {
   background: #101010;
 }

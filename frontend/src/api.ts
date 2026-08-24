@@ -158,6 +158,43 @@ export type AppNotification = {
   createdAt: string;
 };
 
+export type UserNotification = {
+  deliveryId: string;
+  notificationId: string;
+  type: string;
+  title: string;
+  message: string;
+  url?: string | null;
+  imageUrl?: string | null;
+  icon?: string | null;
+  isSeen: boolean;
+  seenAt?: string | null;
+  createdAt: string;
+};
+
+export type NotificationPreference = {
+  id: string;
+  type: string;
+  discipline?: string | null;
+  enabled: boolean;
+  timeOfDay: string;
+  timezone: string;
+  reminderText?: string | null;
+};
+
+export type NotificationPreferenceCreate = {
+  type: string;
+  discipline?: string | null;
+  enabled: boolean;
+  timeOfDay: string;
+  timezone: string;
+  reminderText?: string | null;
+};
+
+export type NotificationPreferencePatch = Partial<
+  Pick<NotificationPreferenceCreate, 'type' | 'discipline' | 'enabled' | 'timeOfDay' | 'timezone' | 'reminderText'>
+>;
+
 export class DailyLogNotFoundError extends Error {
   constructor() {
     super('No existe la bitácora para esta fecha.');
@@ -330,6 +367,122 @@ export async function getLatestAppNotifications(limit = 5) {
   return ((await response.json()) as AppNotification[])
     .filter((notification) => notification.status === undefined || notification.status === 'sent')
     .slice(0, limit);
+}
+
+export async function getMyNotifications(isSeen?: boolean) {
+  const query = isSeen === undefined ? '' : `?isSeen=${isSeen}`;
+  const response = await fetch(apiUrl(`/api/notifications${query}`), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as UserNotification[];
+}
+
+export async function getUnseenNotificationCount() {
+  const response = await fetch(apiUrl('/api/notifications/unseen-count'), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as { count: number };
+}
+
+export async function markNotificationSeen(deliveryId: string) {
+  const response = await fetch(apiUrl(`/api/notifications/${deliveryId}/seen`), {
+    method: 'PATCH',
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+}
+
+export async function markAllNotificationsSeen() {
+  const response = await fetch(apiUrl('/api/notifications/seen'), {
+    method: 'PATCH',
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as { updatedCount: number };
+}
+
+export async function getNotificationPreferences() {
+  const response = await fetch(apiUrl('/api/notification-preferences'), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as NotificationPreference[];
+}
+
+export async function createNotificationPreference(data: NotificationPreferenceCreate) {
+  const response = await fetch(apiUrl('/api/notification-preferences'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as NotificationPreference;
+}
+
+export async function updateNotificationPreference(id: string, data: NotificationPreferencePatch) {
+  const response = await fetch(apiUrl(`/api/notification-preferences/${id}`), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+}
+
+export async function deleteNotificationPreference(id: string) {
+  const response = await fetch(apiUrl(`/api/notification-preferences/${id}`), {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
 }
 
 export async function sendBrevoTestEmail() {

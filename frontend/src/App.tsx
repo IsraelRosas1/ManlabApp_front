@@ -5,24 +5,35 @@ import {
   DailyLogNotFoundError,
   type ApiStatus,
   type AppNotification,
+  type NotificationPreference,
+  type NotificationPreferenceCreate,
   type RetoDailyLog,
   type RetoDailyLogPatch,
   type RetoStreak,
+  type UserNotification,
   type WeakLink,
   checkApiConnection,
+  createNotificationPreference,
   createRetoDailyLog,
+  deleteNotificationPreference,
   getCurrentIdentityMe,
   getIdentityMe,
   getLatestAppNotifications,
   getLocalDateOffset,
+  getMyNotifications,
+  getNotificationPreferences,
   getRetoDailyLog,
   getRetoLogsFromTo,
   getRetoStreak,
   getTodayLogDate,
+  getUnseenNotificationCount,
   getWeakLinks,
   enableOneSignalNotifications,
+  markAllNotificationsSeen,
+  markNotificationSeen,
   registerUser,
   sendBrevoTestEmail,
+  updateNotificationPreference,
   updateRetoDailyLog,
 } from './api';
 import {
@@ -42,12 +53,48 @@ type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
 
 const protectedScreens: ScreenKey[] = ['home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
 const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
+const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
+const SEEN_GLOBAL_NOTIFICATIONS_KEY = 'manlab.seenGlobalNotifications';
+
+const defaultNotificationPreferenceForm: NotificationPreferenceCreate = {
+  type: 'reto_reminder',
+  discipline: 'fisico',
+  enabled: true,
+  timeOfDay: '07:00',
+  timezone: 'America/Mexico_City',
+  reminderText: 'Haz pierna y registra tu bitacora al terminar.',
+};
+
+const notificationPreferenceTypes = [
+  { value: 'reto_reminder', label: 'Recordatorio Reto' },
+  { value: 'daily_reto_reminder', label: 'Reto diario' },
+  { value: 'weak_link_warning', label: 'Eslabón débil' },
+];
+
+const notificationPreferenceDisciplines = [
+  { value: 'intelectual', label: 'Intelectual' },
+  { value: 'espiritual', label: 'Espiritual' },
+  { value: 'fisico', label: 'Físico' },
+  { value: 'economico', label: 'Económico' },
+  { value: 'social_atraccion', label: 'Social / Atracción' },
+];
+
+const notificationPreferenceTimezones = [
+  'America/Mexico_City',
+  'America/Monterrey',
+  'America/Tijuana',
+  'America/New_York',
+  'America/Detroit',
+  'America/Los_Angeles',
+];
 
 type TabButtonProps = {
   current: ScreenKey;
   target: BottomNavKey;
   label: string;
   icon: ReactNode;
+  badgeCount?: number;
   onNavigate: (screen: ScreenKey) => void;
 };
 
@@ -58,6 +105,8 @@ type ShellButtonProps = {
   type?: 'button' | 'submit';
   onClick?: () => void;
 };
+
+type DisplayNotification = AppNotification | UserNotification;
 
 const tabs: Array<{
   key: BottomNavKey;
@@ -152,6 +201,66 @@ const fallbackHomeNotifications: AppNotification[] = [
   },
 ];
 
+function getNotificationId(notification: DisplayNotification) {
+  return 'deliveryId' in notification ? notification.deliveryId : notification.id;
+}
+
+function getNotificationDate(notification: DisplayNotification) {
+  if ('sentAt' in notification && notification.sentAt) {
+    return notification.sentAt;
+  }
+
+  return notification.createdAt;
+}
+
+function truncateWords(text: string, limit: number) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+
+  if (words.length <= limit) {
+    return text;
+  }
+
+  return `${words.slice(0, limit).join(' ')}...`;
+}
+
+function notifyNotificationsChanged() {
+  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
+}
+
+function getSeenGlobalNotificationIds() {
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(SEEN_GLOBAL_NOTIFICATIONS_KEY) || '[]') as string[]);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveSeenGlobalNotificationIds(ids: Set<string>) {
+  window.localStorage.setItem(SEEN_GLOBAL_NOTIFICATIONS_KEY, JSON.stringify([...ids]));
+}
+
+function isNotificationSeen(notification: DisplayNotification) {
+  if ('isSeen' in notification) {
+    return notification.isSeen;
+  }
+
+  return getSeenGlobalNotificationIds().has(notification.id);
+}
+
+function markGlobalNotificationSeen(notificationId: string) {
+  const seenIds = getSeenGlobalNotificationIds();
+  seenIds.add(notificationId);
+  saveSeenGlobalNotificationIds(seenIds);
+}
+
+function mergeNotifications(userNotifications: UserNotification[], globalNotifications: AppNotification[]) {
+  const deliveredNotificationIds = new Set(userNotifications.map((notification) => notification.notificationId));
+  return [
+    ...userNotifications,
+    ...globalNotifications.filter((notification) => !deliveredNotificationIds.has(notification.id)),
+  ].sort((a, b) => new Date(getNotificationDate(b)).getTime() - new Date(getNotificationDate(a)).getTime());
+}
+
 function getReverseRetoDay(fallbackDayIndex: number) {
   const identity = getIdentity();
 
@@ -172,6 +281,39 @@ function getReverseRetoDay(fallbackDayIndex: number) {
   const elapsedDays = Math.max(0, Math.floor((todayDay - startDay) / 86400000));
 
   return Math.max(0, Math.min(100, 100 - elapsedDays));
+}
+
+function isRetoLogComplete(log?: RetoDailyLog | null) {
+  return Boolean(
+    log?.fIntelectual &&
+      log.fEspiritual &&
+      log.fFisico &&
+      log.fEconomico &&
+      log.fSocialAtraccion,
+  );
+}
+
+function getAdjustedCurrentStreak(streak: RetoStreak, dailyLog: RetoDailyLog, recentLogs: RetoDailyLog[]) {
+  const today = getTodayLogDate();
+  const logsByDate = new Map(recentLogs.map((log) => [log.logDate.slice(0, 10), log]));
+  logsByDate.set(dailyLog.logDate.slice(0, 10), dailyLog);
+
+  let adjustedStreak = 0;
+  let cursorOffset = isRetoLogComplete(logsByDate.get(today)) ? 0 : -1;
+
+  for (let daysChecked = 0; daysChecked < recentLogs.length + 1; daysChecked += 1) {
+    const date = getLocalDateOffset(cursorOffset);
+    const log = logsByDate.get(date);
+
+    if (!isRetoLogComplete(log)) {
+      break;
+    }
+
+    adjustedStreak += 1;
+    cursorOffset -= 1;
+  }
+
+  return Math.max(streak.currentStreak, adjustedStreak);
 }
 
 function getInitialScreen(): ScreenKey {
@@ -624,6 +766,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   const primaryWeakLink = weakLinks[0];
   const reverseRetoDay = getReverseRetoDay(dailyLog.dayIndex);
   const completedFronts = retoFrentes.filter((front) => dailyLog[front.key]).length;
+  const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, dailyLog, recentLogs);
   const scrollToRetoSection = (sectionId: string) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -644,7 +787,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
           aria-controls="reto-streak-info"
         >
           <FlameIcon />
-          <span>{streak.currentStreak}</span>
+          <span>{adjustedCurrentStreak}</span>
         </button>
       </header>
 
@@ -832,6 +975,7 @@ function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
 function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [homeNotifications, setHomeNotifications] = useState<AppNotification[]>(fallbackHomeNotifications);
+  const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
   const [notificationStatus, setNotificationStatus] = useState('');
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const reverseRetoDay = getReverseRetoDay(1);
@@ -933,15 +1077,26 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       </section>
 
       <section className="home-section">
-        <h3>ÚLTIMAS NOTIFICACIONES</h3>
+        <h3>AVISOS DESTACADOS</h3>
         <div className="home-alerts">
           {homeNotifications.slice(0, 5).map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} />
+            <NotificationRow
+              key={notification.id}
+              notification={notification}
+              messageWordLimit={HOME_NOTIFICATION_PREVIEW_WORDS}
+              onOpen={() => setSelectedNotification(notification)}
+            />
           ))}
         </div>
       </section>
 
       <BottomNav current="home" onNavigate={onNavigate} />
+      {selectedNotification ? (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          onClose={() => setSelectedNotification(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -955,7 +1110,7 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
   );
 }
 
-function getNotificationIcon(notification: AppNotification) {
+function getNotificationIcon(notification: DisplayNotification) {
   const icon = notification.icon?.toLowerCase();
   const type = notification.type?.toLowerCase() || '';
   const title = notification.title?.toLowerCase() || '';
@@ -975,8 +1130,8 @@ function getNotificationIcon(notification: AppNotification) {
   return <BellIcon />;
 }
 
-function getNotificationMeta(notification: AppNotification) {
-  const dateValue = notification.sentAt || notification.createdAt;
+function getNotificationMeta(notification: DisplayNotification) {
+  const dateValue = getNotificationDate(notification);
   const date = new Date(dateValue);
 
   if (Number.isNaN(date.getTime())) {
@@ -1002,20 +1157,29 @@ function getNotificationMeta(notification: AppNotification) {
   return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
 
-function NotificationRow({ notification }: { notification: AppNotification }) {
+function NotificationRow({
+  notification,
+  messageWordLimit,
+  onOpen,
+  showSeenState = false,
+}: {
+  notification: DisplayNotification;
+  messageWordLimit?: number;
+  onOpen: () => void;
+  showSeenState?: boolean;
+}) {
   const [didImageFail, setDidImageFail] = useState(false);
   const shouldShowImage = Boolean(notification.imageUrl && !didImageFail);
-
-  const handleClick = () => {
-    if (notification.url) {
-      window.open(notification.url, '_blank', 'noopener,noreferrer');
-    }
-  };
+  const previewMessage = messageWordLimit
+    ? truncateWords(notification.message, messageWordLimit)
+    : notification.message;
+  const isSeen = isNotificationSeen(notification);
 
   return (
-    <article
-      className={`home-alert-row ${notification.url ? 'home-alert-row--clickable' : ''}`}
-      onClick={handleClick}
+    <button
+      type="button"
+      className={`home-alert-row home-alert-row--clickable ${showSeenState && !isSeen ? 'home-alert-row--unseen' : ''}`}
+      onClick={onOpen}
     >
       <span className="home-alert-row__icon">
         {shouldShowImage ? (
@@ -1031,36 +1195,545 @@ function NotificationRow({ notification }: { notification: AppNotification }) {
       </span>
       <div>
         <strong>{notification.title}</strong>
-        {notification.message ? <span className="home-alert-row__message">{notification.message}</span> : null}
+        {previewMessage ? <span className="home-alert-row__message">{previewMessage}</span> : null}
         <p>{getNotificationMeta(notification)}</p>
       </div>
-      <ArrowLeftIcon />
-    </article>
+      <span className="home-alert-row__meta">
+        {showSeenState && !isSeen ? <span className="notification-unseen-dot" aria-label="No visto" /> : null}
+        <ArrowLeftIcon />
+      </span>
+    </button>
+  );
+}
+
+function NotificationDetailModal({
+  notification,
+  onClose,
+}: {
+  notification: DisplayNotification;
+  onClose: () => void;
+}) {
+  const [didImageFail, setDidImageFail] = useState(false);
+  const shouldShowImage = Boolean(notification.imageUrl && !didImageFail);
+
+  const openUrl = () => {
+    if (notification.url) {
+      window.open(notification.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <article
+        className="notification-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`notification-detail-${getNotificationId(notification)}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {shouldShowImage ? (
+          <img
+            src={notification.imageUrl || ''}
+            alt=""
+            className="notification-detail-modal__image"
+            onError={() => setDidImageFail(true)}
+          />
+        ) : null}
+        <div className="notification-detail-modal__header">
+          <span className="home-alert-row__icon">{getNotificationIcon(notification)}</span>
+          <div>
+            <h3 id={`notification-detail-${getNotificationId(notification)}`}>{notification.title}</h3>
+            <p>{getNotificationMeta(notification)}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar aviso">
+            ×
+          </button>
+        </div>
+        <p className="notification-detail-modal__message">{notification.message}</p>
+        {notification.url ? (
+          <ShellButton variant="primary" fullWidth onClick={openUrl}>
+            ABRIR ENLACE
+          </ShellButton>
+        ) : null}
+      </article>
+    </div>
   );
 }
 
 function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const [notifications, setNotifications] = useState<DisplayNotification[]>([]);
+  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
+  const [preferenceForm, setPreferenceForm] =
+    useState<NotificationPreferenceCreate>(defaultNotificationPreferenceForm);
+  const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
+  const [filter, setFilter] = useState<'all' | 'unseen'>('all');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
+  const [isMarkingAllSeen, setIsMarkingAllSeen] = useState(false);
+  const [isSavingPreference, setIsSavingPreference] = useState(false);
+
+  const loadNotifications = async () => {
+    setIsLoading(true);
+    setStatusMessage('');
+
+    try {
+      const [userNotifications, globalNotifications] = await Promise.all([
+        getMyNotifications(filter === 'unseen' ? false : undefined),
+        getLatestAppNotifications(50),
+      ]);
+      const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
+      setNotifications(
+        filter === 'unseen'
+          ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
+          : mergedNotifications,
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudieron cargar los avisos.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadPreferences = async () => {
+    setIsLoadingPreferences(true);
+
+    try {
+      setPreferences(await getNotificationPreferences());
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudieron cargar tus recordatorios.');
+    } finally {
+      setIsLoadingPreferences(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setIsLoading(true);
+    setStatusMessage('');
+    Promise.all([
+      getMyNotifications(filter === 'unseen' ? false : undefined),
+      getLatestAppNotifications(50),
+    ])
+      .then(([userNotifications, globalNotifications]) => {
+        if (isMounted) {
+          const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
+          setNotifications(
+            filter === 'unseen'
+              ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
+              : mergedNotifications,
+          );
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setStatusMessage(error instanceof Error ? error.message : 'No se pudieron cargar los avisos.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setIsLoadingPreferences(true);
+    getNotificationPreferences()
+      .then((nextPreferences) => {
+        if (isMounted) {
+          setPreferences(nextPreferences);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setStatusMessage(error instanceof Error ? error.message : 'No se pudieron cargar tus recordatorios.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingPreferences(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const openNotification = async (notification: DisplayNotification) => {
+    setSelectedNotification(notification);
+
+    if (isNotificationSeen(notification)) {
+      return;
+    }
+
+    if (!('deliveryId' in notification)) {
+      markGlobalNotificationSeen(notification.id);
+      setNotifications((current) =>
+        current.filter((item) => filter !== 'unseen' || getNotificationId(item) !== getNotificationId(notification)),
+      );
+      notifyNotificationsChanged();
+      return;
+    }
+
+    try {
+      await markNotificationSeen(notification.deliveryId);
+      const seenNotification = { ...notification, isSeen: true, seenAt: new Date().toISOString() };
+      setSelectedNotification(seenNotification);
+      setNotifications((current) =>
+        current
+          .map((item) =>
+            'deliveryId' in item && item.deliveryId === notification.deliveryId ? seenNotification : item,
+          )
+          .filter((item) => filter !== 'unseen' || !isNotificationSeen(item)),
+      );
+      notifyNotificationsChanged();
+    } catch {
+      setStatusMessage('No se pudo marcar el aviso como visto.');
+    }
+  };
+
+  const markAllSeen = async () => {
+    setIsMarkingAllSeen(true);
+    setStatusMessage('');
+
+    try {
+      await markAllNotificationsSeen();
+      const globalIds = notifications
+        .filter((notification): notification is AppNotification => !('deliveryId' in notification))
+        .map((notification) => notification.id);
+      const seenGlobalIds = getSeenGlobalNotificationIds();
+      globalIds.forEach((id) => seenGlobalIds.add(id));
+      saveSeenGlobalNotificationIds(seenGlobalIds);
+      setNotifications((current) =>
+        current
+          .map((notification) =>
+            'deliveryId' in notification
+              ? {
+                  ...notification,
+                  isSeen: true,
+                  seenAt: notification.seenAt || new Date().toISOString(),
+                }
+              : notification,
+          )
+          .filter((notification) => filter !== 'unseen' || !isNotificationSeen(notification)),
+      );
+      notifyNotificationsChanged();
+      setStatusMessage('Avisos marcados como vistos.');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudieron marcar los avisos.');
+    } finally {
+      setIsMarkingAllSeen(false);
+    }
+  };
+
+  const updatePreferenceForm = (key: keyof NotificationPreferenceCreate, value: string | boolean | null) => {
+    setPreferenceForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const createPreference = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingPreference(true);
+    setStatusMessage('');
+
+    try {
+      await createNotificationPreference({
+        ...preferenceForm,
+        discipline: preferenceForm.discipline || null,
+        reminderText: preferenceForm.reminderText?.trim() || null,
+      });
+      setPreferenceForm(defaultNotificationPreferenceForm);
+      await loadPreferences();
+      setStatusMessage('Recordatorio creado.');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo crear el recordatorio.');
+    } finally {
+      setIsSavingPreference(false);
+    }
+  };
+
+  const togglePreference = async (preference: NotificationPreference) => {
+    setStatusMessage('');
+
+    try {
+      await updateNotificationPreference(preference.id, { enabled: !preference.enabled });
+      setPreferences((current) =>
+        current.map((item) =>
+          item.id === preference.id ? { ...item, enabled: !item.enabled } : item,
+        ),
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo actualizar el recordatorio.');
+    }
+  };
+
+  const updatePreferenceTime = async (preference: NotificationPreference, timeOfDay: string) => {
+    setStatusMessage('');
+
+    try {
+      await updateNotificationPreference(preference.id, { timeOfDay });
+      setPreferences((current) =>
+        current.map((item) => (item.id === preference.id ? { ...item, timeOfDay } : item)),
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo actualizar la hora.');
+    }
+  };
+
+  const updatePreferenceReminderText = async (preference: NotificationPreference, reminderText: string) => {
+    setStatusMessage('');
+
+    try {
+      await updateNotificationPreference(preference.id, { reminderText: reminderText.trim() || null });
+      setPreferences((current) =>
+        current.map((item) => (item.id === preference.id ? { ...item, reminderText } : item)),
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo actualizar el texto.');
+    }
+  };
+
+  const removePreference = async (preferenceId: string) => {
+    setStatusMessage('');
+
+    try {
+      await deleteNotificationPreference(preferenceId);
+      setPreferences((current) => current.filter((preference) => preference.id !== preferenceId));
+      setStatusMessage('Recordatorio eliminado.');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo eliminar el recordatorio.');
+    }
+  };
+
   return (
     <section className="screen screen--stacked screen--tight-bottom">
       <header className="screen-header">
         <h2>AVISOS</h2>
-        <p>Notificaciones</p>
+        <p>Notificaciones de ManLab</p>
       </header>
 
-      <div className="locked-stack">
-        <div className="locked-row">
-          <span>Hoy</span>
-          <strong>Completa tu bitácora diaria</strong>
+      <button
+        type="button"
+        className="notification-preferences-open"
+        onClick={() => setIsPreferencesModalOpen(true)}
+      >
+        MIS RECORDATORIOS
+      </button>
+
+      <div className="notifications-toolbar">
+        <div className="segmented-control" aria-label="Filtro de avisos">
+          <button
+            type="button"
+            className={filter === 'all' ? 'is-active' : ''}
+            onClick={() => setFilter('all')}
+          >
+            Todos
+          </button>
+          <button
+            type="button"
+            className={filter === 'unseen' ? 'is-active' : ''}
+            onClick={() => setFilter('unseen')}
+          >
+            No vistos
+          </button>
         </div>
-        <div className="locked-row">
-          <span>Reto</span>
-          <strong>Revisa tu eslabón débil</strong>
-        </div>
+        <button
+          type="button"
+          className="notifications-mark-button"
+          onClick={() => void markAllSeen()}
+          disabled={isMarkingAllSeen || notifications.every((notification) => isNotificationSeen(notification))}
+        >
+          {isMarkingAllSeen ? 'Marcando' : 'Marcar vistos'}
+        </button>
+      </div>
+
+      {statusMessage ? <p className="notifications-status">{statusMessage}</p> : null}
+
+      <div className="home-alerts notifications-list">
+        {notifications.map((notification) => (
+          <NotificationRow
+            key={getNotificationId(notification)}
+            notification={notification}
+            showSeenState
+            onOpen={() => void openNotification(notification)}
+          />
+        ))}
+        {!isLoading && notifications.length === 0 ? (
+          <p className="notifications-empty">
+            {filter === 'unseen' ? 'No tienes avisos pendientes.' : 'Todavía no hay avisos.'}
+          </p>
+        ) : null}
+        {isLoading ? <p className="notifications-empty">Cargando avisos...</p> : null}
       </div>
 
       <div className="screen-spacer" />
 
       <BottomNav current="notifications" onNavigate={onNavigate} />
+      {selectedNotification ? (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          onClose={() => {
+            setSelectedNotification(null);
+            void loadNotifications();
+          }}
+        />
+      ) : null}
+      {isPreferencesModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsPreferencesModalOpen(false)}>
+          <section
+            className="notification-preferences-card notification-preferences-card--modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-preferences-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="notification-preferences-card__header">
+              <div>
+                <h3 id="notification-preferences-title">Mis recordatorios</h3>
+                <p>Programa avisos personales para tu Reto.</p>
+              </div>
+              <button type="button" onClick={() => setIsPreferencesModalOpen(false)} aria-label="Cerrar recordatorios">
+                ×
+              </button>
+            </div>
+
+            <form className="notification-preference-form" onSubmit={createPreference}>
+              <label>
+                Tipo
+                <select
+                  value={preferenceForm.type}
+                  onChange={(event) => updatePreferenceForm('type', event.target.value)}
+                >
+                  {notificationPreferenceTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Disciplina
+                <select
+                  value={preferenceForm.discipline || ''}
+                  onChange={(event) => updatePreferenceForm('discipline', event.target.value || null)}
+                >
+                  {notificationPreferenceDisciplines.map((discipline) => (
+                    <option key={discipline.value} value={discipline.value}>
+                      {discipline.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Hora
+                <input
+                  type="time"
+                  value={preferenceForm.timeOfDay}
+                  onChange={(event) => updatePreferenceForm('timeOfDay', event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Zona
+                <select
+                  value={preferenceForm.timezone}
+                  onChange={(event) => updatePreferenceForm('timezone', event.target.value)}
+                >
+                  {notificationPreferenceTimezones.map((timezone) => (
+                    <option key={timezone} value={timezone}>
+                      {timezone}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="notification-preference-toggle">
+                <input
+                  type="checkbox"
+                  checked={preferenceForm.enabled}
+                  onChange={(event) => updatePreferenceForm('enabled', event.target.checked)}
+                />
+                Activo
+              </label>
+              <label className="notification-preference-form__wide">
+                Texto
+                <textarea
+                  value={preferenceForm.reminderText || ''}
+                  onChange={(event) => updatePreferenceForm('reminderText', event.target.value)}
+                  placeholder="Haz pierna y registra tu bitacora al terminar."
+                  rows={3}
+                />
+              </label>
+              <button type="submit" disabled={isSavingPreference}>
+                {isSavingPreference ? 'Guardando' : 'Crear'}
+              </button>
+            </form>
+
+            <div className="notification-preference-list">
+              {preferences.map((preference) => (
+                <article key={preference.id} className="notification-preference-row">
+                  <div>
+                    <strong>{notificationPreferenceTypes.find((type) => type.value === preference.type)?.label || preference.type}</strong>
+                    <span>
+                      {notificationPreferenceDisciplines.find((discipline) => discipline.value === preference.discipline)?.label ||
+                        preference.discipline ||
+                        'General'} · {preference.timezone}
+                    </span>
+                  </div>
+                  <textarea
+                    value={preference.reminderText || ''}
+                    onChange={(event) => {
+                      const reminderText = event.target.value;
+                      setPreferences((current) =>
+                        current.map((item) => (item.id === preference.id ? { ...item, reminderText } : item)),
+                      );
+                    }}
+                    onBlur={(event) => void updatePreferenceReminderText(preference, event.target.value)}
+                    aria-label="Texto del recordatorio"
+                    rows={2}
+                  />
+                  <input
+                    type="time"
+                    value={preference.timeOfDay}
+                    onChange={(event) => void updatePreferenceTime(preference, event.target.value)}
+                    aria-label="Hora del recordatorio"
+                  />
+                  <button
+                    type="button"
+                    className={preference.enabled ? 'notification-preference-state is-active' : 'notification-preference-state'}
+                    onClick={() => void togglePreference(preference)}
+                  >
+                    {preference.enabled ? 'Activo' : 'Pausado'}
+                  </button>
+                  <button
+                    type="button"
+                    className="notification-preference-delete"
+                    onClick={() => void removePreference(preference.id)}
+                    aria-label="Eliminar recordatorio"
+                  >
+                    ×
+                  </button>
+                </article>
+              ))}
+              {!isLoadingPreferences && preferences.length === 0 ? (
+                <p className="notifications-empty">Aún no tienes recordatorios personales.</p>
+              ) : null}
+              {isLoadingPreferences ? <p className="notifications-empty">Cargando recordatorios...</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1130,11 +1803,60 @@ function DelphiEmbed() {
   return <div ref={embedRef} className="delphi-embed" aria-label="Chat Delphi" />;
 }
 
+function formatSubscriptionEndDate(value?: string) {
+  if (!value) {
+    return 'Sin fecha registrada';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatPlanCode(planCode?: string) {
+  const normalizedPlan = planCode?.toLowerCase();
+
+  if (normalizedPlan === 'mensual') {
+    return 'Mensual';
+  }
+
+  if (normalizedPlan === 'anual') {
+    return 'Anual';
+  }
+
+  if (normalizedPlan === 'fundador') {
+    return 'Fundador';
+  }
+
+  return planCode || 'Sin plan';
+}
+
+function getProfileInitials(name?: string, email?: string) {
+  const label = name?.trim() || email?.trim() || 'ManLab';
+  const parts = label.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return label.slice(0, 2).toUpperCase();
+}
+
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [emailTestStatus, setEmailTestStatus] = useState('');
   const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
+  const identity = getIdentity();
+  const planLabel = formatPlanCode(identity?.planCode);
+  const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -1184,17 +1906,18 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   return (
     <section className="screen screen--stacked screen--tight-bottom">
       <header className="profile-hero">
-        <div className="profile-hero__avatar">MH</div>
+        <div className="profile-hero__avatar">{getProfileInitials(identity?.name, identity?.email)}</div>
         <div>
           <h2>PERFIL</h2>
-          <p>Hombre en obra · T2</p>
+          <p>Hombre en obra</p>
         </div>
       </header>
 
       <div className="profile-card profile-card--accent">
         <span className="profile-card__eyebrow">Estado actual</span>
-        <strong>Acceso activo</strong>
-        <p>La suscripción desbloquea el Reto, el consejo, el Clon y el resto del muro.</p>
+        <strong>{identity?.subscriptionStatus === 'active' ? 'Acceso activo' : 'Revisar suscripción'}</strong>
+        <p>Plan: {planLabel}</p>
+        <p>Termina: {subscriptionEndDate}</p>
       </div>
 
       <div className="api-status">
@@ -1213,24 +1936,9 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         </article>
         <article className="profile-card">
           <span className="profile-card__eyebrow">Rango</span>
-          <strong>T2</strong>
-          <p>Hombre en obra</p>
+          <strong>Hombre en obra</strong>
+          <p>Rango actual</p>
         </article>
-      </div>
-
-      <div className="locked-stack">
-        <div className="locked-row">
-          <span>Fase 2</span>
-          <strong>Lector EPUB</strong>
-        </div>
-        <div className="locked-row">
-          <span>Fase 2</span>
-          <strong>Audiolibros</strong>
-        </div>
-        <div className="locked-row">
-          <span>Fase 3</span>
-          <strong>Videoteca · Hermandad</strong>
-        </div>
       </div>
 
       <div className="profile-card">
@@ -1263,6 +1971,44 @@ function getApiStatusLabel(status: ApiStatus) {
 }
 
 function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (screen: ScreenKey) => void }) {
+  const [unseenCount, setUnseenCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUnseenCount = async () => {
+      if (!isAuthenticated()) {
+        return;
+      }
+
+      try {
+        const [result, globalNotifications] = await Promise.all([
+          getUnseenNotificationCount(),
+          getLatestAppNotifications(50),
+        ]);
+        const seenGlobalIds = getSeenGlobalNotificationIds();
+        const unseenGlobalCount = globalNotifications.filter(
+          (notification) => !seenGlobalIds.has(notification.id),
+        ).length;
+        if (isMounted) {
+          setUnseenCount(result.count + unseenGlobalCount);
+        }
+      } catch {
+        if (isMounted) {
+          setUnseenCount(0);
+        }
+      }
+    };
+
+    void loadUnseenCount();
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, loadUnseenCount);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, loadUnseenCount);
+    };
+  }, []);
+
   return (
     <nav className="bottom-nav" aria-label="Navegación principal">
       {tabs.map((tab) => (
@@ -1272,6 +2018,7 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
           target={tab.key}
           label={tab.label}
           icon={tab.icon}
+          badgeCount={tab.key === 'notifications' ? unseenCount : 0}
           onNavigate={onNavigate}
         />
       ))}
@@ -1279,7 +2026,7 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
   );
 }
 
-function TabButton({ current, target, label, icon, onNavigate }: TabButtonProps) {
+function TabButton({ current, target, label, icon, badgeCount = 0, onNavigate }: TabButtonProps) {
   const active = current === target;
 
   return (
@@ -1289,7 +2036,10 @@ function TabButton({ current, target, label, icon, onNavigate }: TabButtonProps)
       onClick={() => onNavigate(target)}
       aria-current={active ? 'page' : undefined}
     >
-      <span className="bottom-nav__icon">{icon}</span>
+      <span className="bottom-nav__icon">
+        {icon}
+        {badgeCount > 0 ? <span className="bottom-nav__badge">{badgeCount > 9 ? '9+' : badgeCount}</span> : null}
+      </span>
       <span>{label}</span>
     </button>
   );
