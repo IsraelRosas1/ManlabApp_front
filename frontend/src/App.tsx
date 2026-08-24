@@ -63,7 +63,7 @@ const defaultNotificationPreferenceForm: NotificationPreferenceCreate = {
   enabled: true,
   timeOfDay: '07:00',
   timezone: 'America/Mexico_City',
-  reminderText: 'Haz pierna y registra tu bitacora al terminar.',
+  reminderText: '',
 };
 
 const notificationPreferenceTypes = [
@@ -1267,8 +1267,8 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
     useState<NotificationPreferenceCreate>(defaultNotificationPreferenceForm);
   const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
   const [filter, setFilter] = useState<'all' | 'unseen'>('all');
+  const [avisosView, setAvisosView] = useState<'notifications' | 'reminders'>('notifications');
   const [statusMessage, setStatusMessage] = useState('');
-  const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
   const [isMarkingAllSeen, setIsMarkingAllSeen] = useState(false);
@@ -1524,43 +1524,176 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
         <p>Notificaciones de ManLab</p>
       </header>
 
-      <button
-        type="button"
-        className="notification-preferences-open"
-        onClick={() => setIsPreferencesModalOpen(true)}
+      <section
+        className={`notification-preferences-card ${avisosView === 'reminders' ? '' : 'is-hidden'}`}
+        aria-labelledby="notification-preferences-title"
       >
-        MIS RECORDATORIOS
-      </button>
+        <div className="notification-preferences-card__header">
+          <div>
+            <h3 id="notification-preferences-title">Mis recordatorios</h3>
+            <p>Programa avisos personales para tu Reto.</p>
+          </div>
+        </div>
+
+        <form className="notification-preference-form" onSubmit={createPreference}>
+          <label>
+            Tipo
+            <select
+              value={preferenceForm.type}
+              onChange={(event) => updatePreferenceForm('type', event.target.value)}
+            >
+              {notificationPreferenceTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Disciplina
+            <select
+              value={preferenceForm.discipline || ''}
+              onChange={(event) => updatePreferenceForm('discipline', event.target.value || null)}
+            >
+              {notificationPreferenceDisciplines.map((discipline) => (
+                <option key={discipline.value} value={discipline.value}>
+                  {discipline.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="notification-preference-form__time">
+            Hora
+            <input
+              type="time"
+              value={preferenceForm.timeOfDay}
+              onChange={(event) => updatePreferenceForm('timeOfDay', event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Zona
+            <select
+              value={preferenceForm.timezone}
+              onChange={(event) => updatePreferenceForm('timezone', event.target.value)}
+            >
+              {notificationPreferenceTimezones.map((timezone) => (
+                <option key={timezone} value={timezone}>
+                  {timezone}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="notification-preference-toggle">
+            <input
+              type="checkbox"
+              checked={preferenceForm.enabled}
+              onChange={(event) => updatePreferenceForm('enabled', event.target.checked)}
+            />
+            Activo
+          </label>
+          <button type="submit" disabled={isSavingPreference}>
+            {isSavingPreference ? 'Guardando' : 'Crear'}
+          </button>
+          <label className="notification-preference-form__wide">
+            Texto
+            <textarea
+              value={preferenceForm.reminderText || ''}
+              onChange={(event) => updatePreferenceForm('reminderText', event.target.value)}
+              placeholder="Escribe tu recordatorio..."
+              rows={3}
+            />
+          </label>
+        </form>
+
+        <div className="notification-preference-list">
+          {preferences.map((preference) => (
+            <article key={preference.id} className="notification-preference-row">
+              <div>
+                <strong>{notificationPreferenceTypes.find((type) => type.value === preference.type)?.label || preference.type}</strong>
+                <span>
+                  {notificationPreferenceDisciplines.find((discipline) => discipline.value === preference.discipline)?.label ||
+                    preference.discipline ||
+                    'General'} · {preference.timezone}
+                </span>
+              </div>
+              <textarea
+                value={preference.reminderText || ''}
+                onChange={(event) => {
+                  const reminderText = event.target.value;
+                  setPreferences((current) =>
+                    current.map((item) => (item.id === preference.id ? { ...item, reminderText } : item)),
+                  );
+                }}
+                onBlur={(event) => void updatePreferenceReminderText(preference, event.target.value)}
+                aria-label="Texto del recordatorio"
+                rows={2}
+              />
+              <input
+                type="time"
+                value={preference.timeOfDay}
+                onChange={(event) => void updatePreferenceTime(preference, event.target.value)}
+                aria-label="Hora del recordatorio"
+              />
+              <button
+                type="button"
+                className={preference.enabled ? 'notification-preference-state is-active' : 'notification-preference-state'}
+                onClick={() => void togglePreference(preference)}
+              >
+                {preference.enabled ? 'Activo' : 'Pausado'}
+              </button>
+              <button
+                type="button"
+                className="notification-preference-delete"
+                onClick={() => void removePreference(preference.id)}
+                aria-label="Eliminar recordatorio"
+              >
+                ×
+              </button>
+            </article>
+          ))}
+          {!isLoadingPreferences && preferences.length === 0 ? (
+            <p className="notifications-empty">Aún no tienes recordatorios personales.</p>
+          ) : null}
+          {isLoadingPreferences ? <p className="notifications-empty">Cargando recordatorios...</p> : null}
+        </div>
+      </section>
 
       <div className="notifications-toolbar">
         <div className="segmented-control" aria-label="Filtro de avisos">
           <button
             type="button"
-            className={filter === 'all' ? 'is-active' : ''}
-            onClick={() => setFilter('all')}
+            className={avisosView === 'notifications' ? 'is-active' : ''}
+            onClick={() => {
+              setAvisosView('notifications');
+              setFilter('all');
+            }}
           >
             Todos
           </button>
           <button
             type="button"
-            className={filter === 'unseen' ? 'is-active' : ''}
-            onClick={() => setFilter('unseen')}
+            className={avisosView === 'reminders' ? 'is-active' : ''}
+            onClick={() => setAvisosView('reminders')}
           >
-            No vistos
+            Mis recordatorios
           </button>
         </div>
-        <button
-          type="button"
-          className="notifications-mark-button"
-          onClick={() => void markAllSeen()}
-          disabled={isMarkingAllSeen || notifications.every((notification) => isNotificationSeen(notification))}
-        >
-          {isMarkingAllSeen ? 'Marcando' : 'Marcar vistos'}
-        </button>
+        {avisosView === 'notifications' ? (
+          <button
+            type="button"
+            className="notifications-mark-button"
+            onClick={() => void markAllSeen()}
+            disabled={isMarkingAllSeen || notifications.every((notification) => isNotificationSeen(notification))}
+          >
+            {isMarkingAllSeen ? 'Marcando' : 'Marcar vistos'}
+          </button>
+        ) : null}
       </div>
 
       {statusMessage ? <p className="notifications-status">{statusMessage}</p> : null}
 
+      {avisosView === 'notifications' ? (
       <div className="home-alerts notifications-list">
         {notifications.map((notification) => (
           <NotificationRow
@@ -1577,6 +1710,7 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
         ) : null}
         {isLoading ? <p className="notifications-empty">Cargando avisos...</p> : null}
       </div>
+      ) : null}
 
       <div className="screen-spacer" />
 
@@ -1589,150 +1723,6 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
             void loadNotifications();
           }}
         />
-      ) : null}
-      {isPreferencesModalOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setIsPreferencesModalOpen(false)}>
-          <section
-            className="notification-preferences-card notification-preferences-card--modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notification-preferences-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="notification-preferences-card__header">
-              <div>
-                <h3 id="notification-preferences-title">Mis recordatorios</h3>
-                <p>Programa avisos personales para tu Reto.</p>
-              </div>
-              <button type="button" onClick={() => setIsPreferencesModalOpen(false)} aria-label="Cerrar recordatorios">
-                ×
-              </button>
-            </div>
-
-            <form className="notification-preference-form" onSubmit={createPreference}>
-              <label>
-                Tipo
-                <select
-                  value={preferenceForm.type}
-                  onChange={(event) => updatePreferenceForm('type', event.target.value)}
-                >
-                  {notificationPreferenceTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Disciplina
-                <select
-                  value={preferenceForm.discipline || ''}
-                  onChange={(event) => updatePreferenceForm('discipline', event.target.value || null)}
-                >
-                  {notificationPreferenceDisciplines.map((discipline) => (
-                    <option key={discipline.value} value={discipline.value}>
-                      {discipline.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Hora
-                <input
-                  type="time"
-                  value={preferenceForm.timeOfDay}
-                  onChange={(event) => updatePreferenceForm('timeOfDay', event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Zona
-                <select
-                  value={preferenceForm.timezone}
-                  onChange={(event) => updatePreferenceForm('timezone', event.target.value)}
-                >
-                  {notificationPreferenceTimezones.map((timezone) => (
-                    <option key={timezone} value={timezone}>
-                      {timezone}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="notification-preference-toggle">
-                <input
-                  type="checkbox"
-                  checked={preferenceForm.enabled}
-                  onChange={(event) => updatePreferenceForm('enabled', event.target.checked)}
-                />
-                Activo
-              </label>
-              <label className="notification-preference-form__wide">
-                Texto
-                <textarea
-                  value={preferenceForm.reminderText || ''}
-                  onChange={(event) => updatePreferenceForm('reminderText', event.target.value)}
-                  placeholder="Haz pierna y registra tu bitacora al terminar."
-                  rows={3}
-                />
-              </label>
-              <button type="submit" disabled={isSavingPreference}>
-                {isSavingPreference ? 'Guardando' : 'Crear'}
-              </button>
-            </form>
-
-            <div className="notification-preference-list">
-              {preferences.map((preference) => (
-                <article key={preference.id} className="notification-preference-row">
-                  <div>
-                    <strong>{notificationPreferenceTypes.find((type) => type.value === preference.type)?.label || preference.type}</strong>
-                    <span>
-                      {notificationPreferenceDisciplines.find((discipline) => discipline.value === preference.discipline)?.label ||
-                        preference.discipline ||
-                        'General'} · {preference.timezone}
-                    </span>
-                  </div>
-                  <textarea
-                    value={preference.reminderText || ''}
-                    onChange={(event) => {
-                      const reminderText = event.target.value;
-                      setPreferences((current) =>
-                        current.map((item) => (item.id === preference.id ? { ...item, reminderText } : item)),
-                      );
-                    }}
-                    onBlur={(event) => void updatePreferenceReminderText(preference, event.target.value)}
-                    aria-label="Texto del recordatorio"
-                    rows={2}
-                  />
-                  <input
-                    type="time"
-                    value={preference.timeOfDay}
-                    onChange={(event) => void updatePreferenceTime(preference, event.target.value)}
-                    aria-label="Hora del recordatorio"
-                  />
-                  <button
-                    type="button"
-                    className={preference.enabled ? 'notification-preference-state is-active' : 'notification-preference-state'}
-                    onClick={() => void togglePreference(preference)}
-                  >
-                    {preference.enabled ? 'Activo' : 'Pausado'}
-                  </button>
-                  <button
-                    type="button"
-                    className="notification-preference-delete"
-                    onClick={() => void removePreference(preference.id)}
-                    aria-label="Eliminar recordatorio"
-                  >
-                    ×
-                  </button>
-                </article>
-              ))}
-              {!isLoadingPreferences && preferences.length === 0 ? (
-                <p className="notifications-empty">Aún no tienes recordatorios personales.</p>
-              ) : null}
-              {isLoadingPreferences ? <p className="notifications-empty">Cargando recordatorios...</p> : null}
-            </div>
-          </section>
-        </div>
       ) : null}
     </section>
   );

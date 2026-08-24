@@ -656,6 +656,7 @@ img {
 }
 
 .notifications-toolbar {
+  order: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -702,6 +703,7 @@ img {
 }
 
 .notifications-status {
+  order: 2;
   margin: -4px 0 0;
   color: rgba(245, 240, 232, 0.62);
   font-size: 0.88rem;
@@ -709,6 +711,7 @@ img {
 }
 
 .notifications-list {
+  order: 3;
   min-height: 118px;
 }
 
@@ -720,19 +723,8 @@ img {
   line-height: 1.4;
 }
 
-.notification-preferences-open {
-  min-height: 46px;
-  border: 1px solid rgba(212, 168, 87, 0.46);
-  border-radius: 8px;
-  background: rgba(212, 168, 87, 0.1);
-  color: var(--oro);
-  font-size: 0.9rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-}
-
 .notification-preferences-card {
+  order: 3;
   display: grid;
   gap: 14px;
   border: 1px solid rgba(212, 168, 87, 0.34);
@@ -741,29 +733,11 @@ img {
   background: rgba(255, 255, 255, 0.025);
 }
 
-.notification-preferences-card--modal {
-  width: min(100%, 430px);
-  max-height: min(86svh, 720px);
-  overflow-y: auto;
-  background: #11100f;
-  box-shadow: var(--shadow);
-}
-
 .notification-preferences-card__header {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: 12px;
-}
-
-.notification-preferences-card__header button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  color: var(--oro);
-  font-size: 1.45rem;
-  cursor: pointer;
 }
 
 .notification-preferences-card__header h3 {
@@ -803,22 +777,30 @@ img {
 .notification-preference-row textarea {
   min-height: 40px;
   min-width: 0;
+  width: 100%;
   border: 1px solid rgba(245, 240, 232, 0.14);
   border-radius: 8px;
   padding: 0 10px;
   background: rgba(0, 0, 0, 0.16);
   color: var(--crema);
+  font-size: 16px;
 }
 
 .notification-preference-form textarea,
 .notification-preference-row textarea {
   resize: vertical;
+  max-width: 100%;
   padding: 10px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .notification-preference-form__wide {
   grid-column: 1 / -1;
+}
+
+.notification-preference-form__time {
+  max-width: 132px;
 }
 
 .notification-preference-toggle {
@@ -856,11 +838,12 @@ img {
 
 .notification-preference-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.9fr) 86px auto 32px;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
   border-radius: 10px;
-  padding: 10px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.035);
 }
 
@@ -882,12 +865,18 @@ img {
   line-height: 1.3;
 }
 
+.notification-preference-row > input,
+.notification-preference-row > button {
+  width: 100%;
+}
+
 .notification-preference-state,
 .notification-preference-delete {
   min-height: 34px;
+  width: 100%;
   border-radius: 8px;
   color: rgba(245, 240, 232, 0.72);
-  font-size: 0.74rem;
+  font-size: 0.84rem;
   font-weight: 900;
   cursor: pointer;
 }
@@ -1634,6 +1623,10 @@ img {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 .screen-header,
