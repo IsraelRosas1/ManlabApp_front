@@ -12,6 +12,18 @@
   <body>
     <div id="root"></div>
     <!-- PWA: vite-plugin-pwa inyecta el service worker (cache de lectura offline). -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.init({
+          appId: '445fec6a-906c-432f-a66c-9c04a4a363dc',
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/push/onesignal/' },
+        });
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

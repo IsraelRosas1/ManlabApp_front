@@ -8,11 +8,23 @@
     <link rel="icon" type="image/png" href="/icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>ManLab</title>
-    <script type="module" crossorigin src="/assets/index-DEVjdFeh.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-C9onzFq6.css">
+    <script type="module" crossorigin src="/assets/index-CIB19eUA.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CuPP_pfi.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>
     <!-- PWA: vite-plugin-pwa inyecta el service worker (cache de lectura offline). -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.init({
+          appId: '445fec6a-906c-432f-a66c-9c04a4a363dc',
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/push/onesignal/' },
+        });
+      });
+    </script>
   </body>
 </html>
