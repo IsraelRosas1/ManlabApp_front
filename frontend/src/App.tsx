@@ -45,11 +45,11 @@ import {
   updateAuthIdentity,
 } from './auth';
 
-type ScreenKey = 'login' | 'home' | 'reto' | 'notifications' | 'clon' | 'perfil' | 'veredicto';
+type ScreenKey = 'login' | 'home' | 'contenido' | 'reto' | 'notifications' | 'clon' | 'perfil' | 'veredicto';
 
 type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
 
-const protectedScreens: ScreenKey[] = ['home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
+const protectedScreens: ScreenKey[] = ['home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
 const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
 const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
@@ -168,6 +168,101 @@ const dailyTip = {
     'La calle no perdona la teoría. Lo que sabes en la cabeza vale cero si no lo has probado en carne.',
   author: 'MASTER SANTANA',
 };
+
+type ContentItem = {
+  label: string;
+  title: string;
+  description: string;
+  status: string;
+  ctaLabel: string;
+  locked?: boolean;
+};
+
+type ContentSection = {
+  eyebrow: string;
+  title: string;
+  summary: string;
+  items: ContentItem[];
+};
+
+const contentSections: ContentSection[] = [
+  {
+    eyebrow: 'Universidad del Hombre',
+    title: 'Videos',
+    summary: 'Clases en video que se irán cargando más adelante con la suscripción activa.',
+    items: [
+      {
+        label: 'UNIVERSIDAD DEL HOMBRE',
+        title: 'Biblioteca audiovisual',
+        description: 'Lecciones grabadas y material profundo para la membresía.',
+        status: 'Disponible con suscripción',
+        ctaLabel: 'PRÓXIMAMENTE',
+        locked: true,
+      },
+    ],
+  },
+  {
+    eyebrow: 'Cursos digitales',
+    title: 'FORMACIÓN EN VIDEO',
+    summary: 'Cursos que se desbloquean una vez que el usuario paga por cada producto.',
+    items: [
+      {
+        label: 'CURSO DIGITAL',
+        title: 'EL SEDUCTOR LEGENDARIO',
+        description: 'Curso en video sobre presencia, atracción y seducción estratégica.',
+        status: 'Se desbloquea al pagar',
+        ctaLabel: 'ACCEDER →',
+        locked: true,
+      },
+      {
+        label: 'CURSO DIGITAL',
+        title: 'MAESTRÍA EN CONVENCIMIENTO',
+        description: 'Entrenamiento para persuadir, argumentar y comunicar con precisión.',
+        status: 'Se desbloquea al pagar',
+        ctaLabel: 'ACCEDER →',
+        locked: true,
+      },
+      {
+        label: 'NIVEL: CURSO DIGITAL',
+        title: 'LOS PILARES DEL HOMBRE CHINGÓN',
+        description: 'Bloque de formación base para la disciplina, criterio y ejecución.',
+        status: 'Se desbloquea al pagar',
+        ctaLabel: 'ACCEDER',
+        locked: true,
+      },
+    ],
+  },
+  {
+    eyebrow: 'Audiolibros',
+    title: 'Narración completa',
+    summary: 'Pistas de audio para escuchar el contenido sin abrir la pantalla de video.',
+    items: [
+      {
+        label: 'AUDIOLIBROS',
+        title: 'Narración completa',
+        description: 'Catálogo de audio con reproducción continua dentro de la app.',
+        status: 'Disponible en la biblioteca',
+        ctaLabel: 'PRÓXIMAMENTE',
+        locked: true,
+      },
+    ],
+  },
+  {
+    eyebrow: 'Libros digitales',
+    title: 'Ebooks técnicos',
+    summary: 'Lecturas técnicas y manuales pensados para consulta dentro del móvil.',
+    items: [
+      {
+        label: 'LIBROS DIGITALES',
+        title: 'Ebooks técnicos',
+        description: 'Archivos listos para lectura con enfoque táctico y práctico.',
+        status: 'Disponible en la biblioteca',
+        ctaLabel: 'PRÓXIMAMENTE',
+        locked: true,
+      },
+    ],
+  },
+];
 
 const verdictText =
   'Tres días sin pisar el gimnasio, y el resto del circuito ya lo siente. Tu economía se sostuvo, tu palabra con Dios se sostuvo — pero el cuerpo es la base, y una base que cede arrastra todo lo que construiste encima. No es cansancio. Es una decisión que estás tomando cada mañana que te quedas en la cama.';
@@ -382,7 +477,7 @@ function getInitialScreen(): ScreenKey {
   }
 
   const hash = window.location.hash.replace('#', '') as ScreenKey;
-  if (['login', 'home', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hash)) {
+  if (['login', 'home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hash)) {
     if (protectedScreens.includes(hash) && !isAuthenticated()) {
       return 'login';
     }
@@ -422,6 +517,7 @@ function useScreen() {
     const titles: Record<ScreenKey, string> = {
       login: 'ManLab · Acceso',
       home: 'ManLab · Home',
+      contenido: 'ManLab · Contenido',
       reto: 'ManLab · Reto',
       notifications: 'ManLab · Avisos',
       clon: 'ManLab · Clon',
@@ -506,6 +602,8 @@ export default function App() {
           <LoginScreen onEnter={() => navigate('home')} onNavigate={navigate} />
         ) : screen === 'home' ? (
           <HomeScreen onNavigate={navigate} />
+        ) : screen === 'contenido' ? (
+          <ContenidoScreen onNavigate={navigate} />
         ) : screen === 'reto' ? (
           <RetoScreen onNavigate={navigate} />
         ) : screen === 'notifications' ? (
@@ -1168,7 +1266,7 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
           <QuickAccessButton label="Reto" icon={<ClipboardIcon />} onClick={() => onNavigate('reto')} />
           <QuickAccessButton label="Avisos" icon={<BellIcon />} onClick={() => onNavigate('notifications')} />
           <QuickAccessButton label="Clon" icon={<ChatIcon />} onClick={() => onNavigate('clon')} />
-          <QuickAccessButton label="Contenido" icon={<BookIcon />} onClick={() => onNavigate('home')} />
+          <QuickAccessButton label="Contenido" icon={<BookIcon />} onClick={() => onNavigate('contenido')} />
         </div>
       </section>
 
@@ -1203,6 +1301,64 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
       <span>{icon}</span>
       <strong>{label}</strong>
     </button>
+  );
+}
+
+function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  return (
+    <section className="screen screen--stacked screen--tight-bottom content-screen">
+      <button type="button" className="back-button" onClick={() => onNavigate('home')} aria-label="Volver al home">
+        <ArrowLeftIcon />
+        <span>CONTENIDO</span>
+      </button>
+
+      <header className="content-hero">
+        <p className="section-kicker">BIBLIOTECA MANLAB</p>
+        <h2>CONTENIDO</h2>
+        <p>
+          Aquí se concentra toda la biblioteca: videos, cursos digitales, audiolibros y libros técnicos.
+          Parte del catálogo se libera con la suscripción y otra parte se desbloquea por compra individual.
+        </p>
+      </header>
+
+      <div className="content-sections">
+        {contentSections.map((section) => (
+          <article key={section.title} className="content-section-card">
+            <div className="content-section-card__header">
+              <div>
+                <span>{section.eyebrow}</span>
+                <h3>{section.title}</h3>
+              </div>
+              <p>{section.items.length} piezas</p>
+            </div>
+
+            <p className="content-section-card__summary">{section.summary}</p>
+
+            <div className="content-item-list">
+              {section.items.map((item) => (
+                <article key={item.title} className={`content-item ${item.locked ? 'is-locked' : ''}`}>
+                  <div>
+                    <span>{item.label}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.description}</p>
+                  </div>
+                  <div className="content-item__actions">
+                    <span className="content-status-pill">{item.status}</span>
+                    <button type="button" className="content-item__cta" disabled={item.locked}>
+                      {item.ctaLabel}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <p className="content-footer-note">
+        El acceso completo dependerá de tu plan activo y de las compras que se habiliten dentro de la app.
+      </p>
+    </section>
   );
 }
 
