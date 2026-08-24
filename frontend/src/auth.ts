@@ -18,6 +18,7 @@ export type IdentityMe = {
   subscriptionStatus: string;
   currentPeriodEnd: string;
   planCode: string;
+  pushEnabled?: boolean;
 };
 
 type AuthSession = LoginResponse & {

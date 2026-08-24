@@ -17,6 +17,7 @@ type OneSignalWebSDK = {
       id?: string | null;
       optedIn?: boolean;
       optIn: () => Promise<void>;
+      optOut?: () => Promise<void>;
     };
   };
 };
@@ -574,7 +575,13 @@ async function waitForOneSignalSubscriptionId(OneSignal: OneSignalWebSDK) {
   throw new Error('No se pudo obtener la suscripción de OneSignal.');
 }
 
-export async function updateOneSignalSubscriptionId(subscriptionId: string) {
+async function saveOneSignalPushSettings({
+  oneSignalPlayerId,
+  pushEnabled,
+}: {
+  oneSignalPlayerId?: string;
+  pushEnabled: boolean;
+}) {
   const response = await fetch(apiUrl('/api/identity/onesignal'), {
     method: 'PATCH',
     headers: {
@@ -582,14 +589,28 @@ export async function updateOneSignalSubscriptionId(subscriptionId: string) {
       ...getAuthHeader(),
     },
     body: JSON.stringify({
-      oneSignalPlayerId: subscriptionId,
+      ...(oneSignalPlayerId ? { oneSignalPlayerId } : {}),
+      pushEnabled,
     }),
   });
 
   if (!response.ok) {
     const message = await getResponseErrorMessage(response);
-    throw new Error(message || `Could not save OneSignal subscription (${response.status})`);
+    throw new Error(message || `Could not update push settings (${response.status})`);
   }
+}
+
+export async function updateOneSignalSubscriptionId(subscriptionId: string) {
+  await saveOneSignalPushSettings({
+    oneSignalPlayerId: subscriptionId,
+    pushEnabled: true,
+  });
+}
+
+export async function disableOneSignalPushOnBackend() {
+  await saveOneSignalPushSettings({
+    pushEnabled: false,
+  });
 }
 
 export async function enableOneSignalNotifications() {
@@ -612,4 +633,13 @@ export async function enableOneSignalNotifications() {
 
   await updateOneSignalSubscriptionId(subscriptionId);
   return subscriptionId;
+}
+
+export async function disableOneSignalNotifications() {
+  await withOneSignal(async (OneSignal) => {
+    if (OneSignal.User.PushSubscription.optOut) {
+      await OneSignal.User.PushSubscription.optOut();
+    }
+  });
+  await disableOneSignalPushOnBackend();
 }

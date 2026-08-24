@@ -3,7 +3,6 @@ import type { ChangeEvent, FormEvent, ReactNode } from 'react';
 import {
   API_BASE_URL,
   DailyLogNotFoundError,
-  type ApiStatus,
   type AppNotification,
   type NotificationPreference,
   type NotificationPreferenceCreate,
@@ -12,10 +11,10 @@ import {
   type RetoStreak,
   type UserNotification,
   type WeakLink,
-  checkApiConnection,
   createNotificationPreference,
   createRetoDailyLog,
   deleteNotificationPreference,
+  disableOneSignalNotifications,
   getCurrentIdentityMe,
   getIdentityMe,
   getLatestAppNotifications,
@@ -32,7 +31,6 @@ import {
   markAllNotificationsSeen,
   markNotificationSeen,
   registerUser,
-  sendBrevoTestEmail,
   updateNotificationPreference,
   updateRetoDailyLog,
 } from './api';
@@ -1777,16 +1775,20 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
             Mis recordatorios
           </button>
         </div>
-        {avisosView === 'notifications' ? (
-          <button
-            type="button"
-            className="notifications-mark-button"
-            onClick={() => void markAllSeen()}
-            disabled={isMarkingAllSeen || notifications.every((notification) => isNotificationSeen(notification))}
-          >
-            {isMarkingAllSeen ? 'Marcando' : 'Marcar vistos'}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={`notifications-mark-button ${avisosView === 'notifications' ? '' : 'is-placeholder'}`}
+          onClick={() => void markAllSeen()}
+          disabled={
+            avisosView !== 'notifications' ||
+            isMarkingAllSeen ||
+            notifications.every((notification) => isNotificationSeen(notification))
+          }
+          aria-hidden={avisosView !== 'notifications'}
+          tabIndex={avisosView === 'notifications' ? 0 : -1}
+        >
+          {isMarkingAllSeen ? 'Marcando' : 'Marcar vistos'}
+        </button>
       </div>
 
       {statusMessage ? <p className="notifications-status">{statusMessage}</p> : null}
@@ -1937,42 +1939,71 @@ function getProfileInitials(name?: string, email?: string) {
   return label.slice(0, 2).toUpperCase();
 }
 
+type LegalDocumentKey = 'terms' | 'privacy' | 'refunds';
+
+const legalDocuments: Record<LegalDocumentKey, { title: string; body: string }> = {
+  terms: {
+    title: 'Términos',
+    body:
+      'Mockup: Al usar ManLab aceptas utilizar la plataforma de forma personal, cuidar tus credenciales y respetar las reglas de la comunidad. El acceso, contenido y funciones pueden evolucionar mientras la app sigue en construcción.',
+  },
+  privacy: {
+    title: 'Privacidad',
+    body:
+      'Mockup: ManLab usa tu nombre, correo, estado de suscripción, progreso del Reto y datos de notificaciones para operar tu cuenta. No vendemos tu información personal. Puedes solicitar revisión o eliminación de datos desde soporte.',
+  },
+  refunds: {
+    title: 'Política de reembolsos',
+    body:
+      'Mockup: Los reembolsos se revisan caso por caso según la fecha de compra, el uso de la cuenta y las condiciones de la oferta vigente. Las suscripciones activas pueden cancelarse para evitar renovaciones futuras.',
+  },
+};
+
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
-  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
-  const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
-  const [emailTestStatus, setEmailTestStatus] = useState('');
-  const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
   const identity = getIdentity();
+  const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [pushStatus, setPushStatus] = useState('');
+  const [isPushEnabled, setIsPushEnabled] = useState(
+    identity?.pushEnabled ??
+      (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'),
+  );
+  const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [activeLegalDocument, setActiveLegalDocument] = useState<LegalDocumentKey | null>(null);
   const planLabel = formatPlanCode(identity?.planCode);
   const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
+  const legalDocument = activeLegalDocument ? legalDocuments[activeLegalDocument] : null;
 
   const handleLogout = () => {
     clearAuthSession();
     onNavigate('login');
   };
 
-  const handleSendEmailTest = async () => {
-    setEmailTestStatus('');
-    setIsSendingEmailTest(true);
+  const handlePushToggle = async () => {
+    setPushStatus('');
+    setIsUpdatingPush(true);
 
     try {
-      await sendBrevoTestEmail();
-      setEmailTestStatus('Email de prueba enviado.');
+      if (!isPushEnabled) {
+        await enableOneSignalNotifications();
+        setIsPushEnabled(true);
+        getCurrentIdentityMe().then(updateAuthIdentity).catch(() => undefined);
+        setPushStatus('Notificaciones push activadas.');
+        return;
+      }
+
+      await disableOneSignalNotifications();
+      setIsPushEnabled(false);
+      getCurrentIdentityMe().then(updateAuthIdentity).catch(() => undefined);
+      setPushStatus('Push pausado en este dispositivo. Los avisos dentro de la app seguirán visibles.');
     } catch (error) {
-      setEmailTestStatus(error instanceof Error ? error.message : 'No se pudo enviar el email de prueba.');
+      setPushStatus(error instanceof Error ? error.message : 'No se pudo actualizar push.');
     } finally {
-      setIsSendingEmailTest(false);
+      setIsUpdatingPush(false);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-
-    checkApiConnection().then((status) => {
-      if (isMounted) {
-        setApiStatus(status);
-      }
-    });
 
     getRetoStreak()
       .then((retoStreak) => {
@@ -1992,70 +2023,96 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   }, []);
 
   return (
-    <section className="screen screen--stacked screen--tight-bottom">
+    <section className="screen screen--stacked screen--tight-bottom profile-screen">
       <header className="profile-hero">
         <div className="profile-hero__avatar">{getProfileInitials(identity?.name, identity?.email)}</div>
         <div>
           <h2>PERFIL</h2>
-          <p>Hombre en obra</p>
+          <p>{identity?.name || 'Hombre en obra'}</p>
+          <span className="profile-hero__email">{identity?.email || 'Sin correo registrado'}</span>
         </div>
       </header>
+
+      <div className="profile-identity-card">
+        <div>
+          <span>Nombre</span>
+          <strong>{identity?.name || 'Sin nombre registrado'}</strong>
+        </div>
+        <div>
+          <span>Email</span>
+          <strong>{identity?.email || 'Sin correo registrado'}</strong>
+        </div>
+      </div>
 
       <div className="profile-card profile-card--accent">
         <span className="profile-card__eyebrow">Estado actual</span>
         <strong>{identity?.subscriptionStatus === 'active' ? 'Acceso activo' : 'Revisar suscripción'}</strong>
         <p>Plan: {planLabel}</p>
         <p>Termina: {subscriptionEndDate}</p>
+        <p>Edición: <strong>HIERRO</strong></p>
       </div>
 
-      <div className="api-status">
-        <span className={`api-status__dot api-status__dot--${apiStatus}`} />
-        <div>
-          <strong>{getApiStatusLabel(apiStatus)}</strong>
-          <p>{API_BASE_URL || 'VITE_API_BASE_URL no está configurado'}</p>
+      <div className="profile-rank-rail">
+        <div className="profile-rank-rail__item">
+          <span>Rango</span>
+          <strong>Hombre en obra</strong>
+        </div>
+        <div className="profile-rank-rail__divider" aria-hidden="true" />
+        <div className="profile-rank-rail__item">
+          <span>Racha</span>
+          <strong>{streak.currentStreak} días</strong>
+          <p>Máxima: {streak.longestStreak}</p>
         </div>
       </div>
 
-      <div className="profile-grid">
-        <article className="profile-card">
-          <span className="profile-card__eyebrow">Racha</span>
-          <strong>{streak.currentStreak} días</strong>
-          <p>Máxima: {streak.longestStreak}</p>
-        </article>
-        <article className="profile-card">
-          <span className="profile-card__eyebrow">Rango</span>
-          <strong>Hombre en obra</strong>
-          <p>Rango actual</p>
-        </article>
-      </div>
-
-      <div className="profile-card">
-        <span className="profile-card__eyebrow">Brevo</span>
-        <strong>Email de prueba</strong>
-        <p>{emailTestStatus || 'Enviar prueba a israelrosassalinas@hotmail.com'}</p>
-        <ShellButton variant="secondary" fullWidth onClick={handleSendEmailTest}>
-          {isSendingEmailTest ? 'ENVIANDO...' : 'ENVIAR TEST'}
-        </ShellButton>
+      <div className="profile-card profile-card--settings">
+        <span className="profile-card__eyebrow">Preferencias</span>
+        <label className="profile-toggle-row">
+          <span>
+            <strong>Push notifications</strong>
+            <p>{pushStatus || 'Guarda el player ID de OneSignal para tus avisos.'}</p>
+          </span>
+          <input
+            type="checkbox"
+            checked={isPushEnabled}
+            onChange={handlePushToggle}
+            disabled={isUpdatingPush}
+          />
+        </label>
       </div>
 
       <ShellButton variant="secondary" fullWidth onClick={handleLogout}>
         CERRAR SESIÓN
       </ShellButton>
 
+      <div className="profile-legal-list profile-legal-list--featured" aria-label="Documentos legales">
+        <button type="button" onClick={() => setActiveLegalDocument('terms')}>Términos</button>
+        <button type="button" onClick={() => setActiveLegalDocument('privacy')}>Privacidad</button>
+        <button type="button" onClick={() => setActiveLegalDocument('refunds')}>Política de reembolsos</button>
+      </div>
+
       <BottomNav current="perfil" onNavigate={onNavigate} />
+      {legalDocument ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setActiveLegalDocument(null)}>
+          <div
+            className="profile-legal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-legal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="profile-legal-modal__header">
+              <h3 id="profile-legal-title">{legalDocument.title}</h3>
+              <button type="button" onClick={() => setActiveLegalDocument(null)} aria-label="Cerrar">
+                ×
+              </button>
+            </div>
+            <p>{legalDocument.body}</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
-}
-
-function getApiStatusLabel(status: ApiStatus) {
-  const labels: Record<ApiStatus, string> = {
-    checking: 'Revisando API local',
-    connected: 'API local conectada',
-    unreachable: 'API local sin respuesta',
-    'not-configured': 'API sin configurar',
-  };
-
-  return labels[status];
 }
 
 function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (screen: ScreenKey) => void }) {
