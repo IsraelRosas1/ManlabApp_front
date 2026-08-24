@@ -72,10 +72,12 @@ img {
 
 .screen {
   min-height: 100svh;
+  height: 100svh;
   display: flex;
   flex-direction: column;
   padding: 20px 20px 16px;
   gap: 18px;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: calc(112px + env(safe-area-inset-bottom));
@@ -301,6 +303,18 @@ img {
   gap: 8px;
 }
 
+.reto-dashboard > .screen-header {
+  position: sticky;
+  top: -20px;
+  z-index: 18;
+  width: calc(100% + 40px);
+  margin: -20px -20px 0;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(212, 168, 87, 0.34);
+  background: rgba(12, 12, 12, 0.94);
+  backdrop-filter: blur(14px);
+}
+
 .screen-header--with-metric {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -320,13 +334,19 @@ img {
 }
 
 .home-brand-card {
+  position: sticky;
+  top: -20px;
+  z-index: 20;
+  width: calc(100% + 40px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid var(--oro);
-  padding: 18px 16px;
-  background: rgba(255, 255, 255, 0.015);
+  margin: -20px -20px 0;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(212, 168, 87, 0.34);
+  background: rgba(12, 12, 12, 0.94);
+  backdrop-filter: blur(14px);
 }
 
 .home-brand-card__main {
@@ -398,6 +418,16 @@ img {
   background: rgba(255, 255, 255, 0.025);
 }
 
+.home-action-card--button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-action-card--button:hover {
+  background: rgba(212, 168, 87, 0.055);
+}
+
 .home-action-card span,
 .home-section h3 {
   color: var(--oro);
@@ -454,6 +484,19 @@ img {
   gap: 14px;
 }
 
+.reto-mini-menu {
+  width: 100%;
+  justify-items: center;
+  text-align: center;
+}
+
+.reto-mini-menu .home-quick-grid {
+  width: min(100%, 300px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-content: center;
+  justify-items: center;
+}
+
 .home-quick-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -496,6 +539,7 @@ img {
 
 .home-alerts {
   display: grid;
+  flex-shrink: 0;
   overflow: hidden;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.035);
@@ -713,6 +757,26 @@ img {
 .notifications-list {
   order: 3;
   min-height: 118px;
+  align-content: start;
+  gap: 10px;
+  overflow: visible;
+  background: transparent;
+}
+
+.notifications-list .home-alert-row {
+  min-height: 92px;
+  align-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.notifications-list .home-alert-row:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notifications-list .home-alert-row__meta {
+  padding-top: 2px;
 }
 
 .notifications-empty {

@@ -223,6 +223,10 @@ function truncateWords(text: string, limit: number) {
   return `${words.slice(0, limit).join(' ')}...`;
 }
 
+function getHomeDailyTipPreview(notification: AppNotification | null) {
+  return truncateWords(notification?.message || dailyTip.body, 12);
+}
+
 function notifyNotificationsChanged() {
   window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
 }
@@ -314,6 +318,16 @@ function getAdjustedCurrentStreak(streak: RetoStreak, dailyLog: RetoDailyLog, re
   }
 
   return Math.max(streak.currentStreak, adjustedStreak);
+}
+
+function findDailyTipNotification(notifications: AppNotification[]) {
+  return notifications.find((notification) => {
+    const icon = notification.icon?.toLowerCase() || '';
+    const type = notification.type?.toLowerCase() || '';
+    const title = notification.title?.toLowerCase() || '';
+
+    return icon === 'bulb' || icon === 'light' || type.includes('consejo') || title.includes('consejo');
+  });
 }
 
 function getInitialScreen(): ScreenKey {
@@ -975,6 +989,7 @@ function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
 function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [homeNotifications, setHomeNotifications] = useState<AppNotification[]>(fallbackHomeNotifications);
+  const [homeDailyTip, setHomeDailyTip] = useState<AppNotification | null>(null);
   const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
   const [notificationStatus, setNotificationStatus] = useState('');
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
@@ -999,11 +1014,13 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       .then((notifications) => {
         if (isMounted) {
           setHomeNotifications(notifications.slice(0, 5));
+          setHomeDailyTip(findDailyTipNotification(notifications) || null);
         }
       })
       .catch(() => {
         if (isMounted) {
           setHomeNotifications(fallbackHomeNotifications);
+          setHomeDailyTip(findDailyTipNotification(fallbackHomeNotifications) || null);
         }
       });
 
@@ -1033,7 +1050,7 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
           <img src="/brand/manlab_dragon_dorado.svg" alt="" className="home-brand-card__logo" />
           <div>
             <h2>MANLAB APP</h2>
-            <p>H O N O S · P R O B I T A S ‎ · P E R F E C T I O</p>
+            <p>H O N O S · P R O B I T A S ‎· P E R F E C T I O</p>
           </div>
         </div>
         <button
@@ -1049,11 +1066,19 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
 
       {notificationStatus ? <p className="home-notification-status">{notificationStatus}</p> : null}
 
-      <article className="home-action-card">
+      <button
+        type="button"
+        className="home-action-card home-action-card--button"
+        onClick={() => {
+          if (homeDailyTip) {
+            setSelectedNotification(homeDailyTip);
+          }
+        }}
+      >
         <span>CONSEJO DEL DÍA</span>
-        <strong>{dailyTip.body}</strong>
-        <p>{dailyTip.author}</p>
-      </article>
+        <strong>{getHomeDailyTipPreview(homeDailyTip)}</strong>
+        <p>{homeDailyTip?.title || dailyTip.author}</p>
+      </button>
 
       <div className="home-stats-grid">
         <article className="home-stat-card">
