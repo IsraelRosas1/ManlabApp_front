@@ -1305,15 +1305,37 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
 }
 
 function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
+
+  const toggleSection = (sectionTitle: string) => {
+    setExpandedSections((current) => {
+      const next = new Set(current);
+
+      if (next.has(sectionTitle)) {
+        next.delete(sectionTitle);
+      } else {
+        next.add(sectionTitle);
+      }
+
+      return next;
+    });
+  };
+
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen">
-      <button type="button" className="back-button" onClick={() => onNavigate('home')} aria-label="Volver al home">
-        <ArrowLeftIcon />
-        <span>CONTENIDO</span>
-      </button>
+      <div className="content-topbar">
+        <button type="button" className="back-button" onClick={() => onNavigate('home')} aria-label="Volver al home">
+          <ArrowLeftIcon />
+          <span>CONTENIDO</span>
+        </button>
+
+        <div className="content-topbar__copy">
+          <p className="section-kicker">BIBLIOTECA MANLAB</p>
+          <span>Videos, cursos, audiolibros y ebooks</span>
+        </div>
+      </div>
 
       <header className="content-hero">
-        <p className="section-kicker">BIBLIOTECA MANLAB</p>
         <h2>CONTENIDO</h2>
         <p>
           Aquí se concentra toda la biblioteca: videos, cursos digitales, audiolibros y libros técnicos.
@@ -1334,23 +1356,34 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
 
             <p className="content-section-card__summary">{section.summary}</p>
 
-            <div className="content-item-list">
-              {section.items.map((item) => (
-                <article key={item.title} className={`content-item ${item.locked ? 'is-locked' : ''}`}>
-                  <div>
-                    <span>{item.label}</span>
-                    <strong>{item.title}</strong>
-                    <p>{item.description}</p>
-                  </div>
-                  <div className="content-item__actions">
-                    <span className="content-status-pill">{item.status}</span>
-                    <button type="button" className="content-item__cta" disabled={item.locked}>
-                      {item.ctaLabel}
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <button
+              type="button"
+              className="content-section-card__toggle"
+              onClick={() => toggleSection(section.title)}
+              aria-expanded={expandedSections.has(section.title)}
+            >
+              {expandedSections.has(section.title) ? 'VER MENOS' : 'VER CONTENIDO'}
+            </button>
+
+            {expandedSections.has(section.title) ? (
+              <div className="content-item-list">
+                {section.items.map((item) => (
+                  <article key={item.title} className={`content-item ${item.locked ? 'is-locked' : ''}`}>
+                    <div>
+                      <span>{item.label}</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.description}</p>
+                    </div>
+                    <div className="content-item__actions">
+                      <span className="content-status-pill">{item.status}</span>
+                      <button type="button" className="content-item__cta" disabled={item.locked}>
+                        {item.ctaLabel}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </article>
         ))}
       </div>
@@ -1358,6 +1391,8 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
       <p className="content-footer-note">
         El acceso completo dependerá de tu plan activo y de las compras que se habiliten dentro de la app.
       </p>
+
+      <BottomNav current="contenido" onNavigate={onNavigate} />
     </section>
   );
 }
