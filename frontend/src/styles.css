@@ -100,6 +100,10 @@ img {
   gap: 24px;
 }
 
+.screen--login > * {
+  flex-shrink: 0;
+}
+
 .screen--stacked {
   padding-bottom: calc(112px + env(safe-area-inset-bottom));
 }

@@ -320,6 +320,54 @@ function getAdjustedCurrentStreak(streak: RetoStreak, dailyLog: RetoDailyLog, re
   return Math.max(streak.currentStreak, adjustedStreak);
 }
 
+async function getAuthResponseMessage(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return '';
+  }
+
+  try {
+    const json = JSON.parse(text) as {
+      error?: string;
+      message?: string;
+      title?: string;
+      errors?: Record<string, string[]>;
+    };
+    const fieldErrors = json.errors ? Object.values(json.errors).flat().join(' ') : '';
+
+    return json.error || json.message || fieldErrors || json.title || text;
+  } catch {
+    return text;
+  }
+}
+
+function getLoginErrorMessage(response: Response, message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    response.status === 404 ||
+    normalizedMessage.includes('email') ||
+    normalizedMessage.includes('correo') ||
+    normalizedMessage.includes('user') ||
+    normalizedMessage.includes('usuario')
+  ) {
+    return 'El correo no existe o está mal escrito.';
+  }
+
+  if (
+    response.status === 401 ||
+    response.status === 403 ||
+    normalizedMessage.includes('password') ||
+    normalizedMessage.includes('contraseña') ||
+    normalizedMessage.includes('clave')
+  ) {
+    return 'La contraseña es incorrecta.';
+  }
+
+  return message || 'Correo o contraseña inválidos.';
+}
+
 function findDailyTipNotification(notifications: AppNotification[]) {
   return notifications.find((notification) => {
     const icon = notification.icon?.toLowerCase() || '';
@@ -503,6 +551,7 @@ function LoginScreen({
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -516,9 +565,15 @@ function LoginScreen({
 
     try {
       if (authMode === 'register') {
+        if (password !== confirmPassword) {
+          setErrorMessage('Las contraseñas no coinciden.');
+          return;
+        }
+
         await registerUser(email, password);
         setAuthMode('login');
         setPassword('');
+        setConfirmPassword('');
         setSuccessMessage('Cuenta creada. Inicia sesión para entrar.');
         return;
       }
@@ -535,7 +590,8 @@ function LoginScreen({
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo iniciar sesión.');
+        const message = await getAuthResponseMessage(response);
+        throw new Error(getLoginErrorMessage(response, message));
       }
 
       const loginResponse = (await response.json()) as LoginResponse;
@@ -580,6 +636,7 @@ function LoginScreen({
           className={authMode === 'login' ? 'is-active' : ''}
           onClick={() => {
             setAuthMode('login');
+            setConfirmPassword('');
             setErrorMessage('');
             setSuccessMessage('');
           }}
@@ -591,6 +648,8 @@ function LoginScreen({
           className={authMode === 'register' ? 'is-active' : ''}
           onClick={() => {
             setAuthMode('register');
+            setPassword('');
+            setConfirmPassword('');
             setErrorMessage('');
             setSuccessMessage('');
           }}
@@ -617,12 +676,26 @@ function LoginScreen({
           <input
             type="password"
             placeholder="••••••••"
-            autoComplete="current-password"
+            autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
         </label>
+
+        {authMode === 'register' ? (
+          <label className="field">
+            <span>CONFIRMAR CONTRASEÑA</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+            />
+          </label>
+        ) : null}
 
         {successMessage ? <p className="auth-success">{successMessage}</p> : null}
         {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
