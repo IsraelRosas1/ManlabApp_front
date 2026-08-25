@@ -2254,6 +2254,12 @@ img {
     padding: 24px;
   }
 
+  .reto-info-box--sticky {
+    top: 92px;
+    right: max(20px, calc(50vw - 380px));
+    width: min(360px, calc(800px - 40px));
+  }
+
   .phone-frame {
     width: min(800px, calc(100vw - 32px));
     height: calc(100svh - 48px);
