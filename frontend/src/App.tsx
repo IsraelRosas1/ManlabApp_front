@@ -980,7 +980,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       {isStreakInfoOpen ? (
         <button
           type="button"
-          className="reto-info-box"
+          className="reto-info-box reto-info-box--sticky"
           id="reto-streak-info"
           onClick={() => setIsStreakInfoOpen(false)}
         >

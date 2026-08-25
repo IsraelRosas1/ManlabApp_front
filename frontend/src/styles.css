@@ -1307,6 +1307,42 @@ img {
   text-align: left;
 }
 
+.reto-info-box--sticky {
+  position: fixed;
+  top: calc(66px + env(safe-area-inset-top));
+  right: 20px;
+  left: auto;
+  width: min(360px, calc(100vw - 40px));
+  z-index: 32;
+  border-radius: 16px;
+  border: 1px solid rgba(212, 168, 87, 0.44);
+  background: rgba(23, 12, 10, 0.92);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+
+.reto-info-box--sticky::before,
+.reto-info-box--sticky::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+}
+
+.reto-info-box--sticky::before {
+  top: -8px;
+  background: rgba(23, 12, 10, 0.92);
+  border-left: 1px solid rgba(212, 168, 87, 0.44);
+  border-top: 1px solid rgba(212, 168, 87, 0.44);
+}
+
+.reto-info-box--sticky::after {
+  top: -7px;
+  background: rgba(23, 12, 10, 0.92);
+}
+
 .reto-info-box strong {
   color: var(--oro);
   font-size: 0.95rem;
