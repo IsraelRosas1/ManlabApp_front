@@ -391,10 +391,12 @@ function isRetoLogComplete(log?: RetoDailyLog | null) {
   );
 }
 
-function getAdjustedCurrentStreak(streak: RetoStreak, dailyLog: RetoDailyLog, recentLogs: RetoDailyLog[]) {
+function getAdjustedCurrentStreak(streak: RetoStreak, recentLogs: RetoDailyLog[], dailyLog?: RetoDailyLog | null) {
   const today = getTodayLogDate();
   const logsByDate = new Map(recentLogs.map((log) => [log.logDate.slice(0, 10), log]));
-  logsByDate.set(dailyLog.logDate.slice(0, 10), dailyLog);
+  if (dailyLog) {
+    logsByDate.set(dailyLog.logDate.slice(0, 10), dailyLog);
+  }
 
   let adjustedStreak = 0;
   let cursorOffset = isRetoLogComplete(logsByDate.get(today)) ? 0 : -1;
@@ -950,7 +952,7 @@ function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   const primaryWeakLink = weakLinks[0];
   const reverseRetoDay = getReverseRetoDay(dailyLog.dayIndex);
   const completedFronts = retoFrentes.filter((front) => dailyLog[front.key]).length;
-  const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, dailyLog, recentLogs);
+  const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs, dailyLog);
   const scrollToRetoSection = (sectionId: string) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -1158,12 +1160,14 @@ function RetoHistoryRow({ log }: { log: RetoDailyLog }) {
 
 function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [recentLogs, setRecentLogs] = useState<RetoDailyLog[]>([]);
   const [homeNotifications, setHomeNotifications] = useState<AppNotification[]>(fallbackHomeNotifications);
   const [homeDailyTip, setHomeDailyTip] = useState<AppNotification | null>(null);
   const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
   const [notificationStatus, setNotificationStatus] = useState('');
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const reverseRetoDay = getReverseRetoDay(1);
+  const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
 
   useEffect(() => {
     let isMounted = true;
@@ -1177,6 +1181,18 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       .catch(() => {
         if (isMounted) {
           setStreak({ currentStreak: 0, longestStreak: 0 });
+        }
+      });
+
+    getRetoLogsFromTo(getLocalDateOffset(-6), getTodayLogDate())
+      .then((logs) => {
+        if (isMounted) {
+          setRecentLogs(logs);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setRecentLogs([]);
         }
       });
 
@@ -1256,7 +1272,7 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
           <span>Reto 100 De 100</span>
         </article>
         <article className="home-stat-card">
-          <strong>{streak.currentStreak}</strong>
+          <strong>{adjustedCurrentStreak}</strong>
           <span>Racha actual</span>
         </article>
       </div>
@@ -2274,6 +2290,7 @@ const legalDocuments: Record<LegalDocumentKey, { title: string; body: string }> 
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const identity = getIdentity();
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
+  const [recentLogs, setRecentLogs] = useState<RetoDailyLog[]>([]);
   const [pushStatus, setPushStatus] = useState('');
   const [isPushEnabled, setIsPushEnabled] = useState(
     identity?.pushEnabled ??
@@ -2284,6 +2301,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   const planLabel = formatPlanCode(identity?.planCode);
   const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
   const legalDocument = activeLegalDocument ? legalDocuments[activeLegalDocument] : null;
+  const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -2326,6 +2344,18 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       .catch(() => {
         if (isMounted) {
           setStreak({ currentStreak: 0, longestStreak: 0 });
+        }
+      });
+
+    getRetoLogsFromTo(getLocalDateOffset(-6), getTodayLogDate())
+      .then((logs) => {
+        if (isMounted) {
+          setRecentLogs(logs);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setRecentLogs([]);
         }
       });
 
@@ -2372,7 +2402,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         <div className="profile-rank-rail__divider" aria-hidden="true" />
         <div className="profile-rank-rail__item">
           <span>Racha</span>
-          <strong>{streak.currentStreak} días</strong>
+          <strong>{adjustedCurrentStreak} días</strong>
           <p>Máxima: {streak.longestStreak}</p>
         </div>
       </div>
