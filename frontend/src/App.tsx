@@ -55,6 +55,7 @@ const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
 const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
 const SEEN_GLOBAL_NOTIFICATIONS_KEY = 'manlab.seenGlobalNotifications';
+const NOTIFICATIONS_LIVE_REFRESH_MS = 15000;
 
 const defaultNotificationPreferenceForm: NotificationPreferenceCreate = {
   type: 'reto_reminder',
@@ -1724,6 +1725,60 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
     };
   }, []);
 
+  useEffect(() => {
+    if (avisosView !== 'notifications') {
+      return;
+    }
+
+    let isMounted = true;
+
+    const refreshNotificationsLive = async () => {
+      try {
+        const [userNotifications, globalNotifications] = await Promise.all([
+          getMyNotifications(filter === 'unseen' ? false : undefined),
+          getLatestAppNotifications(50),
+        ]);
+        if (!isMounted) {
+          return;
+        }
+        const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
+        setNotifications(
+          filter === 'unseen'
+            ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
+            : mergedNotifications,
+        );
+      } catch {
+        // Keep current list on transient live-refresh failures.
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void refreshNotificationsLive();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshNotificationsLive();
+      }
+    };
+
+    const liveRefreshIntervalId = window.setInterval(() => {
+      void refreshNotificationsLive();
+    }, NOTIFICATIONS_LIVE_REFRESH_MS);
+
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(liveRefreshIntervalId);
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [avisosView, filter]);
+
   const openNotification = async (notification: DisplayNotification) => {
     setSelectedNotification(notification);
 
@@ -1899,7 +1954,7 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
   };
 
   return (
-    <section className="screen screen--stacked screen--tight-bottom">
+    <section className="screen screen--stacked screen--tight-bottom screen--notifications">
       <header className="screen-header">
         <h2>AVISOS</h2>
         <p>Notificaciones de ManLab</p>
@@ -2487,12 +2542,30 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
       }
     };
 
+    const handleWindowFocus = () => {
+      void loadUnseenCount();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadUnseenCount();
+      }
+    };
+
     void loadUnseenCount();
-    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, loadUnseenCount);
+    const refreshIntervalId = window.setInterval(() => {
+      void loadUnseenCount();
+    }, NOTIFICATIONS_LIVE_REFRESH_MS);
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMounted = false;
-      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, loadUnseenCount);
+      window.clearInterval(refreshIntervalId);
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

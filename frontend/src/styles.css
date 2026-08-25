@@ -1008,7 +1008,7 @@ img {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: -6px -20px 0;
+  margin: 0 -20px 0;
   padding: 8px 20px;
   border-bottom: 1px solid rgba(212, 168, 87, 0.18);
   background: rgba(12, 12, 12, 0.94);
@@ -1074,6 +1074,10 @@ img {
   gap: 10px;
   overflow: visible;
   background: transparent;
+}
+
+.screen--notifications .screen-spacer {
+  order: 4;
 }
 
 .notifications-list .home-alert-row {
@@ -2364,6 +2368,11 @@ img {
   .content-topbar,
   .screen-header {
     margin-top: 0;
+  }
+
+  .screen--notifications .notifications-toolbar {
+    top: 88px;
+    z-index: 17;
   }
 
   .reto-info-box--sticky {
