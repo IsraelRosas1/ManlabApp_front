@@ -772,6 +772,15 @@ img {
   background: rgba(255, 255, 255, 0.035);
 }
 
+.notification-row-shell:last-child .home-alert-row {
+  border-bottom: 0;
+}
+
+.notification-long-press .home-alert-row {
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .home-alert-row {
   min-height: 78px;
   width: 100%;
@@ -790,10 +799,6 @@ img {
 
 .home-alert-row--clickable:hover {
   background: rgba(212, 168, 87, 0.05);
-}
-
-.home-alert-row:last-child {
-  border-bottom: 0;
 }
 
 .home-alert-row--unseen {
@@ -924,6 +929,72 @@ img {
   font-size: 0.98rem;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.notification-delete-backdrop {
+  background: rgba(0, 0, 0, 0.54);
+  backdrop-filter: blur(12px);
+}
+
+.notification-delete-modal {
+  width: min(100%, 360px);
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(212, 168, 87, 0.38);
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(17, 16, 15, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.notification-delete-modal span {
+  display: block;
+  color: #ffb1aa;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notification-delete-modal h3 {
+  margin: 6px 0 0;
+  color: var(--crema);
+  font-size: 1.06rem;
+  line-height: 1.25;
+}
+
+.notification-delete-modal p {
+  margin: 8px 0 0;
+  color: rgba(245, 240, 232, 0.64);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.notification-delete-modal__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.notification-delete-modal__actions button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 240, 232, 0.12);
+  color: rgba(245, 240, 232, 0.82);
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.notification-delete-modal__actions button.is-danger {
+  border-color: rgba(255, 92, 80, 0.5);
+  color: #fff1ee;
+  background: rgba(180, 44, 36, 0.62);
+}
+
+.notification-delete-modal__actions button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .notifications-toolbar {

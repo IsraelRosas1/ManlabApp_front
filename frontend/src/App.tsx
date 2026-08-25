@@ -14,6 +14,7 @@ import {
   createNotificationPreference,
   createRetoDailyLog,
   deleteNotificationPreference,
+  deleteUserNotification,
   disableOneSignalNotifications,
   getCurrentIdentityMe,
   getIdentityMe,
@@ -1448,48 +1449,97 @@ function NotificationRow({
   notification,
   messageWordLimit,
   onOpen,
+  onRequestDelete,
   showSeenState = false,
 }: {
   notification: DisplayNotification;
   messageWordLimit?: number;
   onOpen: () => void;
+  onRequestDelete?: (notification: UserNotification) => void;
   showSeenState?: boolean;
 }) {
   const [didImageFail, setDidImageFail] = useState(false);
+  const longPressTimer = useRef<number | null>(null);
+  const didLongPress = useRef(false);
   const shouldShowImage = Boolean(notification.imageUrl && !didImageFail);
   const previewMessage = messageWordLimit
     ? truncateWords(notification.message, messageWordLimit)
     : notification.message;
   const isSeen = isNotificationSeen(notification);
+  const canDelete = Boolean(onRequestDelete && 'deliveryId' in notification);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const requestDelete = () => {
+    if (canDelete && 'deliveryId' in notification) {
+      onRequestDelete?.(notification);
+    }
+  };
+
+  const handlePointerDown = () => {
+    if (!canDelete) {
+      return;
+    }
+
+    didLongPress.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      didLongPress.current = true;
+      requestDelete();
+    }, 420);
+  };
+
+  const handlePointerUp = () => {
+    clearLongPressTimer();
+  };
+
+  const handleOpen = () => {
+    if (didLongPress.current) {
+      didLongPress.current = false;
+      return;
+    }
+
+    onOpen();
+  };
 
   return (
-    <button
-      type="button"
-      className={`home-alert-row home-alert-row--clickable ${showSeenState && !isSeen ? 'home-alert-row--unseen' : ''}`}
-      onClick={onOpen}
-    >
-      <span className="home-alert-row__icon">
-        {shouldShowImage ? (
-          <img
-            src={notification.imageUrl || ''}
-            alt=""
-            className="home-alert-row__image"
-            onError={() => setDidImageFail(true)}
-          />
-        ) : (
-          getNotificationIcon(notification)
-        )}
-      </span>
-      <div>
-        <strong>{notification.title}</strong>
-        {previewMessage ? <span className="home-alert-row__message">{previewMessage}</span> : null}
-        <p>{getNotificationMeta(notification)}</p>
-      </div>
-      <span className="home-alert-row__meta">
-        {showSeenState && !isSeen ? <span className="notification-unseen-dot" aria-label="No visto" /> : null}
-        <ArrowLeftIcon />
-      </span>
-    </button>
+    <div className={`notification-row-shell ${canDelete ? 'notification-long-press' : ''}`}>
+      <button
+        type="button"
+        className={`home-alert-row home-alert-row--clickable ${showSeenState && !isSeen ? 'home-alert-row--unseen' : ''}`}
+        onClick={handleOpen}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      >
+        <span className="home-alert-row__icon">
+          {shouldShowImage ? (
+            <img
+              src={notification.imageUrl || ''}
+              alt=""
+              className="home-alert-row__image"
+              onError={() => setDidImageFail(true)}
+            />
+          ) : (
+            getNotificationIcon(notification)
+          )}
+        </span>
+        <div>
+          <strong>{notification.title}</strong>
+          {previewMessage ? <span className="home-alert-row__message">{previewMessage}</span> : null}
+          <p>{getNotificationMeta(notification)}</p>
+        </div>
+        <span className="home-alert-row__meta">
+          {showSeenState && !isSeen ? <span className="notification-unseen-dot" aria-label="No visto" /> : null}
+          <ArrowLeftIcon />
+        </span>
+      </button>
+    </div>
   );
 }
 
@@ -1553,12 +1603,14 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
   const [preferenceForm, setPreferenceForm] =
     useState<NotificationPreferenceCreate>(defaultNotificationPreferenceForm);
   const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
+  const [notificationPendingDelete, setNotificationPendingDelete] = useState<UserNotification | null>(null);
   const [filter, setFilter] = useState<'all' | 'unseen'>('all');
   const [avisosView, setAvisosView] = useState<'notifications' | 'reminders'>('notifications');
   const [statusMessage, setStatusMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
   const [isMarkingAllSeen, setIsMarkingAllSeen] = useState(false);
+  const [isDeletingNotification, setIsDeletingNotification] = useState(false);
   const [isSavingPreference, setIsSavingPreference] = useState(false);
 
   const loadNotifications = async () => {
@@ -1720,6 +1772,32 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
       setStatusMessage(error instanceof Error ? error.message : 'No se pudieron marcar los avisos.');
     } finally {
       setIsMarkingAllSeen(false);
+    }
+  };
+
+  const confirmDeleteNotification = async () => {
+    if (!notificationPendingDelete) {
+      return;
+    }
+
+    setIsDeletingNotification(true);
+    setStatusMessage('');
+
+    try {
+      await deleteUserNotification(notificationPendingDelete.deliveryId);
+      setNotifications((current) =>
+        current.filter((notification) => getNotificationId(notification) !== notificationPendingDelete.deliveryId),
+      );
+      setSelectedNotification((current) =>
+        current && getNotificationId(current) === notificationPendingDelete.deliveryId ? null : current,
+      );
+      setNotificationPendingDelete(null);
+      notifyNotificationsChanged();
+      setStatusMessage('Aviso eliminado.');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'No se pudo eliminar la notificación.');
+    } finally {
+      setIsDeletingNotification(false);
     }
   };
 
@@ -1992,6 +2070,7 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
             notification={notification}
             showSeenState
             onOpen={() => void openNotification(notification)}
+            onRequestDelete={(item) => setNotificationPendingDelete(item)}
           />
         ))}
         {!isLoading && notifications.length === 0 ? (
@@ -2014,6 +2093,48 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
             void loadNotifications();
           }}
         />
+      ) : null}
+      {notificationPendingDelete ? (
+        <div
+          className="modal-backdrop notification-delete-backdrop"
+          role="presentation"
+          onClick={() => {
+            if (!isDeletingNotification) {
+              setNotificationPendingDelete(null);
+            }
+          }}
+        >
+          <article
+            className="notification-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-delete-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div>
+              <span>Eliminar aviso</span>
+              <h3 id="notification-delete-title">{notificationPendingDelete.title}</h3>
+              <p>Esto lo borra solo de tu bandeja dentro de ManLab.</p>
+            </div>
+            <div className="notification-delete-modal__actions">
+              <button
+                type="button"
+                onClick={() => setNotificationPendingDelete(null)}
+                disabled={isDeletingNotification}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => void confirmDeleteNotification()}
+                disabled={isDeletingNotification}
+              >
+                {isDeletingNotification ? 'Eliminando' : 'Eliminar'}
+              </button>
+            </div>
+          </article>
+        </div>
       ) : null}
     </section>
   );

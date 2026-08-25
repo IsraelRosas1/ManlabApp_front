@@ -417,6 +417,19 @@ export async function markNotificationSeen(deliveryId: string) {
   }
 }
 
+export async function deleteUserNotification(deliveryId: string) {
+  const response = await fetch(apiUrl(`/api/notifications/${deliveryId}`), {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error((await response.text()) || 'No se pudo eliminar la notificación');
+  }
+}
+
 export async function markAllNotificationsSeen() {
   const response = await fetch(apiUrl('/api/notifications/seen'), {
     method: 'PATCH',
