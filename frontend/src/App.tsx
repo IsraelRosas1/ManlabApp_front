@@ -1890,7 +1890,11 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
         discipline: preferenceForm.discipline || null,
         reminderText: preferenceForm.reminderText?.trim() || null,
       });
-      setPreferenceForm(defaultNotificationPreferenceForm);
+      setPreferenceForm((current) => ({
+        ...defaultNotificationPreferenceForm,
+        timeOfDay: current.timeOfDay,
+        timezone: current.timezone,
+      }));
       await loadPreferences();
       setStatusMessage('Recordatorio creado.');
     } catch (error) {

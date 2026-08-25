@@ -1251,6 +1251,16 @@ img {
   width: 100%;
 }
 
+@media (max-width: 899px) {
+  .notification-preference-row > input[type='time'] {
+    width: 116px;
+    max-width: 100%;
+    justify-self: start;
+    font-size: 0.9rem;
+    padding: 0 8px;
+  }
+}
+
 .notification-preference-state,
 .notification-preference-delete {
   min-height: 34px;
