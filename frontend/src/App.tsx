@@ -56,6 +56,8 @@ const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
 const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
 const SEEN_GLOBAL_NOTIFICATIONS_KEY = 'manlab.seenGlobalNotifications';
 const NOTIFICATIONS_LIVE_REFRESH_MS = 15000;
+const HOME_FEATURED_NOTIFICATIONS_COLLAPSED_COUNT = 5;
+const PERSONAL_NOTIFICATIONS_COLLAPSED_COUNT = 10;
 
 const defaultNotificationPreferenceForm: NotificationPreferenceCreate = {
   type: 'reto_reminder',
@@ -1163,12 +1165,15 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [recentLogs, setRecentLogs] = useState<RetoDailyLog[]>([]);
   const [homeNotifications, setHomeNotifications] = useState<AppNotification[]>(fallbackHomeNotifications);
+  const [isFeaturedOverflowOpen, setIsFeaturedOverflowOpen] = useState(false);
   const [homeDailyTip, setHomeDailyTip] = useState<AppNotification | null>(null);
   const [selectedNotification, setSelectedNotification] = useState<DisplayNotification | null>(null);
   const [notificationStatus, setNotificationStatus] = useState('');
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const reverseRetoDay = getReverseRetoDay(1);
   const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
+  const visibleHomeNotifications = homeNotifications.slice(0, HOME_FEATURED_NOTIFICATIONS_COLLAPSED_COUNT);
+  const featuredOverflowNotifications = homeNotifications.slice(HOME_FEATURED_NOTIFICATIONS_COLLAPSED_COUNT);
 
   useEffect(() => {
     let isMounted = true;
@@ -1197,10 +1202,10 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
         }
       });
 
-    getLatestAppNotifications(5)
+    getLatestAppNotifications(100)
       .then((notifications) => {
         if (isMounted) {
-          setHomeNotifications(notifications.slice(0, 5));
+          setHomeNotifications(notifications);
           setHomeDailyTip(findDailyTipNotification(notifications) || null);
         }
       })
@@ -1291,7 +1296,7 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
       <section className="home-section">
         <h3>AVISOS DESTACADOS</h3>
         <div className="home-alerts">
-          {homeNotifications.slice(0, 5).map((notification) => (
+          {visibleHomeNotifications.map((notification) => (
             <NotificationRow
               key={notification.id}
               notification={notification}
@@ -1300,6 +1305,16 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
             />
           ))}
         </div>
+        {homeNotifications.length > 0 ? (
+          <button
+            type="button"
+            className="show-more-arrow-button"
+            onClick={() => setIsFeaturedOverflowOpen(true)}
+          >
+            <span>SHOW MORE</span>
+            <ChevronRightIcon />
+          </button>
+        ) : null}
       </section>
 
       <BottomNav current="home" onNavigate={onNavigate} />
@@ -1307,6 +1322,18 @@ function HomeScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void })
         <NotificationDetailModal
           notification={selectedNotification}
           onClose={() => setSelectedNotification(null)}
+        />
+      ) : null}
+      {isFeaturedOverflowOpen ? (
+        <NotificationOverflowModal
+          title="Más avisos destacados"
+          items={featuredOverflowNotifications}
+          emptyMessage="No hay más avisos por mostrar."
+          onClose={() => setIsFeaturedOverflowOpen(false)}
+          onOpenNotification={(notification) => {
+            setIsFeaturedOverflowOpen(false);
+            setSelectedNotification(notification);
+          }}
         />
       ) : null}
     </section>
@@ -1614,6 +1641,50 @@ function NotificationDetailModal({
   );
 }
 
+function NotificationOverflowModal({
+  title,
+  items,
+  emptyMessage,
+  onClose,
+  onOpenNotification,
+}: {
+  title: string;
+  items: DisplayNotification[];
+  emptyMessage: string;
+  onClose: () => void;
+  onOpenNotification: (notification: DisplayNotification) => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <article
+        className="notification-overflow-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="notification-overflow-modal__header">
+          <h3>{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Cerrar listado de avisos">
+            ×
+          </button>
+        </div>
+
+        <div className="notification-overflow-modal__list">
+          {items.length === 0 ? <p className="notifications-empty">{emptyMessage}</p> : null}
+          {items.map((notification) => (
+            <NotificationRow
+              key={getNotificationId(notification)}
+              notification={notification}
+              onOpen={() => onOpenNotification(notification)}
+            />
+          ))}
+        </div>
+      </article>
+    </div>
+  );
+}
+
 function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const [notifications, setNotifications] = useState<DisplayNotification[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
@@ -1629,6 +1700,9 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
   const [isMarkingAllSeen, setIsMarkingAllSeen] = useState(false);
   const [isDeletingNotification, setIsDeletingNotification] = useState(false);
   const [isSavingPreference, setIsSavingPreference] = useState(false);
+  const [isPersonalOverflowOpen, setIsPersonalOverflowOpen] = useState(false);
+  const visiblePersonalNotifications = notifications.slice(0, PERSONAL_NOTIFICATIONS_COLLAPSED_COUNT);
+  const personalOverflowNotifications = notifications.slice(PERSONAL_NOTIFICATIONS_COLLAPSED_COUNT);
 
   const loadNotifications = async () => {
     setIsLoading(true);
@@ -2139,7 +2213,7 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
 
       {avisosView === 'notifications' ? (
       <div className="home-alerts notifications-list">
-        {notifications.map((notification) => (
+        {visiblePersonalNotifications.map((notification) => (
           <NotificationRow
             key={getNotificationId(notification)}
             notification={notification}
@@ -2157,6 +2231,17 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
       </div>
       ) : null}
 
+      {avisosView === 'notifications' && notifications.length > 0 ? (
+        <button
+          type="button"
+          className="show-more-arrow-button show-more-arrow-button--notifications"
+          onClick={() => setIsPersonalOverflowOpen(true)}
+        >
+          <span>SHOW MORE</span>
+          <ChevronRightIcon />
+        </button>
+      ) : null}
+
       <div className="screen-spacer" />
 
       <BottomNav current="notifications" onNavigate={onNavigate} />
@@ -2166,6 +2251,18 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
           onClose={() => {
             setSelectedNotification(null);
             void loadNotifications();
+          }}
+        />
+      ) : null}
+      {isPersonalOverflowOpen ? (
+        <NotificationOverflowModal
+          title="Más avisos personales"
+          items={personalOverflowNotifications}
+          emptyMessage="No hay más avisos por mostrar."
+          onClose={() => setIsPersonalOverflowOpen(false)}
+          onOpenNotification={(notification) => {
+            setIsPersonalOverflowOpen(false);
+            void openNotification(notification);
           }}
         />
       ) : null}
@@ -2792,6 +2889,14 @@ function ArrowLeftIcon() {
   return (
     <SvgIcon viewBox="0 0 24 24">
       <path d="M15 18 9 12l6-6" />
+    </SvgIcon>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="m9 6 6 6-6 6" />
     </SvgIcon>
   );
 }

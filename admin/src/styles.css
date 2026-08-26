@@ -23,6 +23,89 @@ body {
   background: #0c0c0c;
 }
 
+.admin-login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, #1a1611 0%, #0c0c0c 52%);
+}
+
+.admin-login-card {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid rgba(212, 168, 87, 0.36);
+  border-radius: 18px;
+  background: rgba(17, 17, 17, 0.94);
+  box-shadow: 0 34px 88px rgba(0, 0, 0, 0.5);
+}
+
+.admin-login-logo {
+  width: 74px;
+  height: 74px;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+
+.admin-login-card h1,
+.admin-login-card p {
+  margin: 0;
+}
+
+.admin-login-card h1 {
+  color: var(--gold);
+  letter-spacing: 0.09em;
+  font-size: 1.45rem;
+}
+
+.admin-login-card p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.admin-login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-login-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-login-form input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: #101010;
+  color: #f4efe6;
+  padding: 0 12px;
+}
+
+.admin-login-field-error,
+.admin-login-general-error {
+  color: #ffb8b8;
+  font-size: 0.82rem;
+}
+
+.admin-login-general-error {
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.1);
+  padding: 10px 12px;
+}
+
+.admin-login-form button {
+  min-height: 44px;
+  border: 1px solid rgba(212, 168, 87, 0.54);
+  background: var(--gold);
+  color: #15100a;
+  font-weight: 900;
+}
+
 button,
 input,
 textarea,
@@ -252,6 +335,10 @@ textarea {
 
 .filters--entitlements {
   grid-template-columns: minmax(220px, 1fr) 180px;
+}
+
+.filters--notification-history {
+  grid-template-columns: minmax(260px, 1.4fr) 220px 180px;
 }
 
 .filters label,

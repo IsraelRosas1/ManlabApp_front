@@ -154,7 +154,6 @@ const notificationTypeOptions: Array<{ value: AdminNotificationType; label: stri
   { value: 'live', label: 'LIVE' },
   { value: 'content', label: 'Contenido' },
   { value: 'youtube_new_video', label: 'YouTube' },
-  { value: 'streak_broken', label: 'Racha rota' },
   { value: 'tiktok_new_video', label: 'TikTok' },
   { value: 'instagram_new_video', label: 'Instagram' },
   { value: 'live_alert', label: 'LIVE alert' },
@@ -234,6 +233,32 @@ function toUtcDateTime(value: string) {
   return date.toISOString();
 }
 
+function getLoginFieldErrors(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('email')) {
+    return {
+      emailError: message,
+      passwordError: '',
+      generalError: '',
+    };
+  }
+
+  if (normalized.includes('password') || normalized.includes('contraseña')) {
+    return {
+      emailError: '',
+      passwordError: message,
+      generalError: '',
+    };
+  }
+
+  return {
+    emailError: 'Verifica tu correo.',
+    passwordError: 'Verifica tu contraseña.',
+    generalError: message || 'Credenciales inválidas.',
+  };
+}
+
 function App() {
   const [section, setSection] = React.useState<AdminSection>('users');
   const [token, setToken] = React.useState(() => window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? '');
@@ -247,6 +272,9 @@ function App() {
     React.useState<SendAdminNotificationRequest>(defaultNotificationForm);
   const [notificationSendMode, setNotificationSendMode] = React.useState<NotificationSendMode>('now');
   const [notificationScheduledAt, setNotificationScheduledAt] = React.useState('');
+  const [notificationHistorySearch, setNotificationHistorySearch] = React.useState('');
+  const [notificationHistoryType, setNotificationHistoryType] = React.useState('');
+  const [notificationHistoryStatus, setNotificationHistoryStatus] = React.useState('');
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [entitlements, setEntitlements] = React.useState<AdminEntitlement[]>([]);
   const [notifications, setNotifications] = React.useState<AdminNotification[]>([]);
@@ -258,6 +286,9 @@ function App() {
   const [isGranting, setIsGranting] = React.useState(false);
   const [isSendingNotification, setIsSendingNotification] = React.useState(false);
   const [isSigningIn, setIsSigningIn] = React.useState(false);
+  const [emailError, setEmailError] = React.useState('');
+  const [passwordError, setPasswordError] = React.useState('');
+  const [loginGeneralError, setLoginGeneralError] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
   const [successMessage, setSuccessMessage] = React.useState('');
 
@@ -339,7 +370,9 @@ function App() {
 
     try {
       const nextNotifications = await getAdminNotifications(token);
-      setNotifications(nextNotifications);
+      setNotifications(
+        nextNotifications.filter((notification) => notification.source?.toLowerCase() === 'admin'),
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'No se pudieron cargar las notificaciones.');
     } finally {
@@ -355,18 +388,41 @@ function App() {
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const normalizedEmail = email.trim();
+
+    setEmailError('');
+    setPasswordError('');
+    setLoginGeneralError('');
+
+    if (!normalizedEmail) {
+      setEmailError('Escribe un correo válido.');
+      return;
+    }
+
+    if (!password) {
+      setPasswordError('Escribe tu contraseña.');
+      return;
+    }
+
     setIsSigningIn(true);
     setErrorMessage('');
     setSuccessMessage('');
 
     try {
-      const loginResponse = await loginAdmin(email.trim(), password);
+      const loginResponse = await loginAdmin(normalizedEmail, password);
       setToken(loginResponse.accessToken);
       setPassword('');
+      setEmailError('');
+      setPasswordError('');
+      setLoginGeneralError('');
       window.localStorage.setItem(ADMIN_TOKEN_KEY, loginResponse.accessToken);
-      window.localStorage.setItem(ADMIN_EMAIL_KEY, email.trim());
+      window.localStorage.setItem(ADMIN_EMAIL_KEY, normalizedEmail);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'No se pudo iniciar sesión.');
+      const message = error instanceof Error ? error.message : 'No se pudo iniciar sesión.';
+      const nextErrors = getLoginFieldErrors(message);
+      setEmailError(nextErrors.emailError);
+      setPasswordError(nextErrors.passwordError);
+      setLoginGeneralError(nextErrors.generalError);
     } finally {
       setIsSigningIn(false);
     }
@@ -381,6 +437,22 @@ function App() {
     setNotificationDetail(null);
     window.localStorage.removeItem(ADMIN_TOKEN_KEY);
   };
+
+  if (!isConnected) {
+    return (
+      <AdminLoginScreen
+        email={email}
+        password={password}
+        isSigningIn={isSigningIn}
+        emailError={emailError}
+        passwordError={passwordError}
+        generalError={loginGeneralError}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onSubmit={handleLogin}
+      />
+    );
+  }
 
   const updateFilter = (key: keyof AdminUserFilters, value: string) => {
     setFilters((current) => ({
@@ -604,6 +676,21 @@ function App() {
     (total, notification) => total + notification.openedDeliveries,
     0,
   );
+  const filteredNotifications = notifications.filter((notification) => {
+    const normalizedSearch = notificationHistorySearch.trim().toLowerCase();
+    const normalizedType = notificationHistoryType.trim().toLowerCase();
+    const normalizedStatus = notificationHistoryStatus.trim().toLowerCase();
+
+    const matchesSearch =
+      !normalizedSearch ||
+      notification.title.toLowerCase().includes(normalizedSearch) ||
+      notification.message.toLowerCase().includes(normalizedSearch) ||
+      notification.type.toLowerCase().includes(normalizedSearch);
+    const matchesType = !normalizedType || notification.type.toLowerCase() === normalizedType;
+    const matchesStatus = !normalizedStatus || normalizeStatus(notification.status) === normalizedStatus;
+
+    return matchesSearch && matchesType && matchesStatus;
+  });
 
   return (
     <main className="admin-shell">
@@ -974,10 +1061,49 @@ function App() {
                 </div>
               </div>
 
+              <div className="filters filters--notification-history">
+                <label>
+                  Buscar
+                  <input
+                    value={notificationHistorySearch}
+                    onChange={(event) => setNotificationHistorySearch(event.target.value)}
+                    placeholder="Título, mensaje o tipo"
+                  />
+                </label>
+                <label>
+                  Tipo
+                  <select
+                    value={notificationHistoryType}
+                    onChange={(event) => setNotificationHistoryType(event.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {notificationTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Estado
+                  <select
+                    value={notificationHistoryStatus}
+                    onChange={(event) => setNotificationHistoryStatus(event.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {notificationStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
               <NotificationsTable
                 isConnected={isConnected}
                 isLoading={isLoadingNotifications}
-                notifications={notifications}
+                notifications={filteredNotifications}
                 onSelectNotification={(notificationId) => void loadNotificationDetail(notificationId)}
                 onUpdateNotification={handleUpdateNotification}
                 onDeleteNotification={handleDeleteNotification}
@@ -1006,6 +1132,76 @@ function App() {
             ) : null}
           </>
         )}
+      </section>
+    </main>
+  );
+}
+
+function AdminLoginScreen({
+  email,
+  password,
+  isSigningIn,
+  emailError,
+  passwordError,
+  generalError,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit,
+}: {
+  email: string;
+  password: string;
+  isSigningIn: boolean;
+  emailError: string;
+  passwordError: string;
+  generalError: string;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <main className="admin-login-screen">
+      <section className="admin-login-card" aria-label="Acceso Admin ManLab">
+        <img
+          src="/brand/manlab_logo_dorado.svg"
+          alt="ManLab"
+          className="admin-login-logo"
+        />
+        <h1>MANLAB ADMIN</h1>
+        <p>Ingresa con tu cuenta admin para gestionar usuarios, entitlements y avisos.</p>
+
+        <form className="admin-login-form" onSubmit={onSubmit}>
+          <label>
+            Correo
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+              placeholder="admin@manlabproject.com"
+              autoComplete="email"
+              aria-invalid={Boolean(emailError)}
+            />
+            {emailError ? <span className="admin-login-field-error">{emailError}</span> : null}
+          </label>
+
+          <label>
+            Contraseña
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              aria-invalid={Boolean(passwordError)}
+            />
+            {passwordError ? <span className="admin-login-field-error">{passwordError}</span> : null}
+          </label>
+
+          {generalError ? <div className="admin-login-general-error">{generalError}</div> : null}
+
+          <button type="submit" disabled={isSigningIn}>
+            {isSigningIn ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
       </section>
     </main>
   );

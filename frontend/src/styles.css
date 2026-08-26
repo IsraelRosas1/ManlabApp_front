@@ -1076,8 +1076,98 @@ img {
   background: transparent;
 }
 
-.screen--notifications .screen-spacer {
+.show-more-arrow-button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(212, 168, 87, 0.34);
+  border-radius: 999px;
+  background: rgba(212, 168, 87, 0.05);
+  color: var(--oro);
+  cursor: pointer;
+}
+
+.show-more-arrow-button span {
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.show-more-arrow-button svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+}
+
+.show-more-arrow-button:hover svg {
+  transform: translateX(2px);
+}
+
+.show-more-arrow-button--notifications {
   order: 4;
+}
+
+.notification-overflow-modal {
+  width: min(100%, 680px);
+  max-height: min(86svh, 760px);
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(212, 168, 87, 0.44);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(14, 13, 12, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.notification-overflow-modal__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-overflow-modal__header h3 {
+  margin: 0;
+  color: var(--oro);
+  font-family: var(--font-impacto);
+  font-size: 1.55rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.notification-overflow-modal__header button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--oro);
+  font-size: 1.45rem;
+  cursor: pointer;
+}
+
+.notification-overflow-modal__list {
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  border-radius: 12px;
+  padding-right: 2px;
+}
+
+.notification-overflow-modal__list .home-alert-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.screen--notifications .screen-spacer {
+  order: 5;
 }
 
 .notifications-list .home-alert-row {
