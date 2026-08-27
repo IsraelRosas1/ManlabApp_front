@@ -303,6 +303,31 @@ img {
   cursor: pointer;
 }
 
+.auth-secondary-action {
+  min-height: 54px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 87, 0.28);
+  background: rgba(212, 168, 87, 0.06);
+  color: var(--oro);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.auth-secondary-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(212, 168, 87, 0.1);
+  border-color: rgba(212, 168, 87, 0.4);
+}
+
+.auth-secondary-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .login-separator {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);

@@ -31,6 +31,7 @@ import {
   enableOneSignalNotifications,
   markAllNotificationsSeen,
   markNotificationSeen,
+  resendClaimLink,
   claimRegisterUser,
   updateNotificationPreference,
   updateRetoDailyLog,
@@ -663,6 +664,7 @@ function LoginScreen({
   const [successMessage, setSuccessMessage] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResendingClaimLink, setIsResendingClaimLink] = useState(false);
 
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -735,6 +737,31 @@ function LoginScreen({
     }
   };
 
+  const handleResendClaimLink = async () => {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setErrorMessage('Escribe el correo con el que se hizo el pago para reenviar el enlace.');
+      setSuccessMessage('');
+      return;
+    }
+
+    setIsResendingClaimLink(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const response = await resendClaimLink(normalizedEmail);
+      setSuccessMessage(
+        response.message || 'Si existe un pago activo para este email, enviaremos un nuevo enlace.',
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo reenviar el enlace.');
+    } finally {
+      setIsResendingClaimLink(false);
+    }
+  };
+
   return (
     <section className="screen screen--login">
       <div className="login-mark" aria-hidden="true">
@@ -790,17 +817,30 @@ function LoginScreen({
             />
           </label>
         ) : (
-          <label className="field">
-            <span>NOMBRE</span>
-            <input
-              type="text"
-              placeholder="Tu nombre"
-              autoComplete="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </label>
+          <>
+            <label className="field">
+              <span>NOMBRE</span>
+              <input
+                type="text"
+                placeholder="Tu nombre"
+                autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>CORREO DE COMPRA</span>
+              <input
+                type="email"
+                placeholder="buyer@email.com"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+          </>
         )}
 
         <label className="field">
@@ -835,6 +875,17 @@ function LoginScreen({
         <ShellButton type="submit" variant="primary" fullWidth>
           {isSubmitting ? (authMode === 'register' ? 'CREANDO...' : 'ENTRANDO...') : authMode === 'register' ? 'CREAR CUENTA' : 'INICIAR SESIÓN'}
         </ShellButton>
+
+        {authMode === 'register' ? (
+          <button
+            type="button"
+            className="auth-secondary-action"
+            onClick={handleResendClaimLink}
+            disabled={isResendingClaimLink}
+          >
+            {isResendingClaimLink ? 'REENVIANDO ENLACE...' : 'REENVIAR ENLACE DE CREACIÓN'}
+          </button>
+        ) : null}
       </form>
 
       <p className="auth-linkline">

@@ -120,6 +120,10 @@ export type ClaimRegisterResponse = {
   message: string;
 };
 
+export type ResendClaimLinkResponse = {
+  message: string;
+};
+
 export async function claimRegisterUser(token: string, name: string, password: string) {
   const response = await fetch(apiUrl('/api/identity/claim-register'), {
     method: 'POST',
@@ -139,6 +143,25 @@ export async function claimRegisterUser(token: string, name: string, password: s
   }
 
   return (await response.json()) as ClaimRegisterResponse;
+}
+
+export async function resendClaimLink(email: string) {
+  const response = await fetch(apiUrl('/api/identity/resend-claim-link'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await getResponseErrorMessage(response);
+    throw new Error(error || 'No se pudo reenviar el enlace.');
+  }
+
+  return (await response.json()) as ResendClaimLinkResponse;
 }
 
 export type RetoDailyLog = {
