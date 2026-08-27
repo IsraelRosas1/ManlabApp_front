@@ -59,8 +59,21 @@ async function getResponseErrorMessage(response: Response) {
   let message = text;
 
   try {
-    const json = JSON.parse(text) as { error?: string };
-    message = json.error || text;
+    const json = JSON.parse(text) as {
+      error?: string;
+      message?: string;
+      errors?: Record<string, string[] | string> | null;
+    };
+
+    const normalizedErrors = json.errors
+      ? Object.values(json.errors)
+          .flatMap((value) => (Array.isArray(value) ? value : [value]))
+          .filter(Boolean)
+      : [];
+
+    const details = normalizedErrors.length ? ` ${normalizedErrors.join(' ')}` : '';
+    message = json.error || json.message || text;
+    message = `${message}${details}`.trim();
   } catch {
     message = text;
   }
@@ -97,23 +110,35 @@ export async function getCurrentIdentityMe() {
 }
 
 export async function registerUser(email: string, password: string) {
-  const response = await fetch(apiUrl('/api/identity/register'), {
+  void email;
+  void password;
+  throw new Error('El endpoint legacy /api/identity/register está bloqueado. Usa /api/identity/claim-register.');
+}
+
+export type ClaimRegisterResponse = {
+  userId: string;
+  message: string;
+};
+
+export async function claimRegisterUser(token: string, name: string, password: string) {
+  const response = await fetch(apiUrl('/api/identity/claim-register'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      email,
+      token,
+      name,
       password,
     }),
   });
 
   if (!response.ok) {
     const error = await getResponseErrorMessage(response);
-    throw new Error(error || 'Could not create account');
+    throw new Error(error || 'No se pudo crear la cuenta.');
   }
 
-  return true;
+  return (await response.json()) as ClaimRegisterResponse;
 }
 
 export type RetoDailyLog = {

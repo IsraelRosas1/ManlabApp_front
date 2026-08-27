@@ -31,7 +31,7 @@ import {
   enableOneSignalNotifications,
   markAllNotificationsSeen,
   markNotificationSeen,
-  registerUser,
+  claimRegisterUser,
   updateNotificationPreference,
   updateRetoDailyLog,
 } from './api';
@@ -482,13 +482,15 @@ function getInitialScreen(): ScreenKey {
     return 'login';
   }
 
-  const hash = window.location.hash.replace('#', '') as ScreenKey;
-  if (['login', 'home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hash)) {
-    if (protectedScreens.includes(hash) && !isAuthenticated()) {
+  const hashValue = window.location.hash.replace('#', '');
+  const hashRoute = hashValue.split('?')[0] as ScreenKey;
+
+  if (['login', 'home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
+    if (protectedScreens.includes(hashRoute) && !isAuthenticated()) {
       return 'login';
     }
 
-    return hash;
+    return hashRoute;
   }
 
   return 'login';
@@ -500,8 +502,9 @@ function useScreen() {
   useEffect(() => {
     const syncFromHash = () => {
       const nextScreen = getInitialScreen();
+      const currentHashRoute = window.location.hash.replace('#', '').split('?')[0];
 
-      if (nextScreen === 'login' && window.location.hash !== '#login') {
+      if (nextScreen === 'login' && currentHashRoute !== 'login') {
         window.location.hash = '#login';
         return;
       }
@@ -651,7 +654,9 @@ function LoginScreen({
   onEnter: () => void;
   onNavigate: (screen: ScreenKey) => void;
 }) {
+  const claimToken = getClaimTokenFromUrl();
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -667,16 +672,27 @@ function LoginScreen({
 
     try {
       if (authMode === 'register') {
+        if (!claimToken) {
+          setErrorMessage('No se encontró token de registro en la URL.');
+          return;
+        }
+
+        if (!name.trim()) {
+          setErrorMessage('Escribe tu nombre.');
+          return;
+        }
+
         if (password !== confirmPassword) {
           setErrorMessage('Las contraseñas no coinciden.');
           return;
         }
 
-        await registerUser(email, password);
+        const registerResponse = await claimRegisterUser(claimToken, name.trim(), password);
         setAuthMode('login');
+        setName('');
         setPassword('');
         setConfirmPassword('');
-        setSuccessMessage('Cuenta creada. Inicia sesión para entrar.');
+        setSuccessMessage(registerResponse.message || 'Cuenta creada. Inicia sesión para entrar.');
         return;
       }
 
@@ -761,17 +777,31 @@ function LoginScreen({
       </div>
 
       <form className="auth-form" onSubmit={handleAuthSubmit}>
-        <label className="field">
-          <span>CORREO</span>
-          <input
-            type="email"
-            placeholder="tu@correo.com"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
+        {authMode === 'login' ? (
+          <label className="field">
+            <span>CORREO</span>
+            <input
+              type="email"
+              placeholder="tu@correo.com"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+        ) : (
+          <label className="field">
+            <span>NOMBRE</span>
+            <input
+              type="text"
+              placeholder="Tu nombre"
+              autoComplete="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
+        )}
 
         <label className="field">
           <span>CONTRASEÑA</span>
@@ -816,6 +846,46 @@ function LoginScreen({
       <p className="login-note">El acceso se activa al completar tu suscripción en manlabproject.com</p>
     </section>
   );
+}
+
+function getClaimTokenFromUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const tokenFromSearch = extractRawToken(window.location.search);
+  if (tokenFromSearch) {
+    return tokenFromSearch;
+  }
+
+  const hash = window.location.hash || '';
+  const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
+  const tokenFromHash = extractRawToken(hashQuery);
+  if (tokenFromHash) {
+    return tokenFromHash;
+  }
+
+  return '';
+}
+
+function extractRawToken(source: string) {
+  if (!source) {
+    return '';
+  }
+
+  const match = source.match(/[?&]token=([^&]+)/i);
+  if (!match) {
+    return '';
+  }
+
+  // Preserve '+' characters from email links (URLSearchParams converts them to spaces).
+  const rawToken = match[1].trim();
+
+  try {
+    return decodeURIComponent(rawToken);
+  } catch {
+    return rawToken;
+  }
 }
 
 function RetoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
