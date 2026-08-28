@@ -93,20 +93,8 @@ export function hasActiveSubscription(identity?: IdentityMe | null) {
     return false;
   }
 
-  if (identity.subscriptionStatus?.toLowerCase() !== 'active') {
-    return false;
-  }
-
-  if (!identity.currentPeriodEnd) {
-    return true;
-  }
-
-  const currentPeriodEnd = new Date(identity.currentPeriodEnd).getTime();
-  if (!Number.isNaN(currentPeriodEnd) && currentPeriodEnd <= Date.now()) {
-    return false;
-  }
-
-  return true;
+  const allowedStatuses = ['active', 'trialing', 'past_due'];
+  return allowedStatuses.includes(identity.subscriptionStatus?.toLowerCase() || '');
 }
 
 export function isAuthenticated() {

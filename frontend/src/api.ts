@@ -124,6 +124,10 @@ export type ResendClaimLinkResponse = {
   message: string;
 };
 
+export type BillingPortalResponse = {
+  url: string;
+};
+
 export async function claimRegisterUser(token: string, name: string, password: string) {
   const response = await fetch(apiUrl('/api/identity/claim-register'), {
     method: 'POST',
@@ -162,6 +166,26 @@ export async function resendClaimLink(email: string) {
   }
 
   return (await response.json()) as ResendClaimLinkResponse;
+}
+
+export async function createBillingPortalSession(returnUrl: string) {
+  const response = await fetch(apiUrl('/api/me/billing-portal'), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      returnUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await getResponseErrorMessage(response);
+    throw new Error(error || 'No se pudo abrir el portal de facturación.');
+  }
+
+  return (await response.json()) as BillingPortalResponse;
 }
 
 export type RetoDailyLog = {

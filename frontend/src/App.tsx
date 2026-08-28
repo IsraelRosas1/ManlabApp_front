@@ -11,6 +11,7 @@ import {
   type RetoStreak,
   type UserNotification,
   type WeakLink,
+  createBillingPortalSession,
   createNotificationPreference,
   createRetoDailyLog,
   deleteNotificationPreference,
@@ -59,6 +60,7 @@ const SEEN_GLOBAL_NOTIFICATIONS_KEY = 'manlab.seenGlobalNotifications';
 const NOTIFICATIONS_LIVE_REFRESH_MS = 15000;
 const HOME_FEATURED_NOTIFICATIONS_COLLAPSED_COUNT = 5;
 const PERSONAL_NOTIFICATIONS_COLLAPSED_COUNT = 10;
+const BILLING_PORTAL_RETURN_REPAINT_KEY = 'manlab.billingPortalReturnRepaint';
 
 const defaultNotificationPreferenceForm: NotificationPreferenceCreate = {
   type: 'reto_reminder',
@@ -107,6 +109,7 @@ type ShellButtonProps = {
   fullWidth?: boolean;
   type?: 'button' | 'submit';
   onClick?: () => void;
+  disabled?: boolean;
 };
 
 type DisplayNotification = AppNotification | UserNotification;
@@ -298,6 +301,15 @@ const fallbackHomeNotifications: AppNotification[] = [
     createdAt: new Date().toISOString(),
   },
 ];
+
+function isStandalonePwa() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true;
+}
 
 function getNotificationId(notification: DisplayNotification) {
   return 'deliveryId' in notification ? notification.deliveryId : notification.id;
@@ -2574,6 +2586,8 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'),
   );
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
+  const [billingPortalStatus, setBillingPortalStatus] = useState('');
   const [activeLegalDocument, setActiveLegalDocument] = useState<LegalDocumentKey | null>(null);
   const planLabel = formatPlanCode(identity?.planCode);
   const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
@@ -2606,6 +2620,38 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       setPushStatus(error instanceof Error ? error.message : 'No se pudo actualizar push.');
     } finally {
       setIsUpdatingPush(false);
+    }
+  };
+
+  const handleOpenBillingPortal = async () => {
+    setBillingPortalStatus('');
+    setIsOpeningBillingPortal(true);
+    const portalWindow = isStandalonePwa() ? window.open('about:blank', '_blank') : null;
+
+    try {
+      const returnUrl = `${window.location.origin}${window.location.pathname}#perfil`;
+      const response = await createBillingPortalSession(returnUrl);
+
+      if (!response.url) {
+        throw new Error('No se recibió URL del portal de facturación.');
+      }
+
+      window.sessionStorage.setItem(BILLING_PORTAL_RETURN_REPAINT_KEY, '1');
+      if (portalWindow) {
+        portalWindow.opener = null;
+        portalWindow.location.href = response.url;
+        setBillingPortalStatus('Stripe se abrió fuera de la app.');
+        return;
+      }
+
+      window.location.assign(response.url);
+    } catch (error) {
+      portalWindow?.close();
+      setBillingPortalStatus(
+        error instanceof Error ? error.message : 'No se pudo abrir el portal de facturación.',
+      );
+    } finally {
+      setIsOpeningBillingPortal(false);
     }
   };
 
@@ -2700,6 +2746,30 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         </label>
       </div>
 
+      <div className="profile-card profile-card--billing">
+        <span className="profile-card__eyebrow">Suscripción</span>
+        <p>Administra pagos, método de cobro, facturas y cancelación desde Stripe.</p>
+        <div className="profile-billing-actions">
+          <ShellButton
+            variant="primary"
+            fullWidth
+            onClick={handleOpenBillingPortal}
+            disabled={isOpeningBillingPortal}
+          >
+            {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'ADMINISTRAR SUSCRIPCIÓN'}
+          </ShellButton>
+          <ShellButton
+            variant="secondary"
+            fullWidth
+            onClick={handleOpenBillingPortal}
+            disabled={isOpeningBillingPortal}
+          >
+            {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'CANCELAR SUSCRIPCIÓN'}
+          </ShellButton>
+        </div>
+        {billingPortalStatus ? <p className="profile-billing-status">{billingPortalStatus}</p> : null}
+      </div>
+
       <ShellButton variant="secondary" fullWidth onClick={handleLogout}>
         CERRAR SESIÓN
       </ShellButton>
@@ -2736,9 +2806,12 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
 
 function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (screen: ScreenKey) => void }) {
   const [unseenCount, setUnseenCount] = useState(0);
+  const [repaintKey, setRepaintKey] = useState(0);
+  const [isRepainting, setIsRepainting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+    const repaintTimers: number[] = [];
 
     const loadUnseenCount = async () => {
       if (!isAuthenticated()) {
@@ -2774,25 +2847,73 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
       }
     };
 
+    const triggerNavRepaint = (force = false) => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+
+      const shouldForceRepaint =
+        force || window.sessionStorage.getItem(BILLING_PORTAL_RETURN_REPAINT_KEY) === '1';
+
+      if (!shouldForceRepaint) {
+        setRepaintKey((currentKey) => currentKey + 1);
+        return;
+      }
+
+      window.sessionStorage.removeItem(BILLING_PORTAL_RETURN_REPAINT_KEY);
+      setIsRepainting(true);
+
+      [0, 80, 240, 520].forEach((delay) => {
+        const timerId = window.setTimeout(() => {
+          if (isMounted) {
+            setRepaintKey((currentKey) => currentKey + 1);
+          }
+        }, delay);
+        repaintTimers.push(timerId);
+      });
+
+      const finishTimerId = window.setTimeout(() => {
+        if (isMounted) {
+          setIsRepainting(false);
+        }
+      }, 720);
+      repaintTimers.push(finishTimerId);
+    };
+
+    const handleFocusRepaint = () => triggerNavRepaint();
+    const handlePageShow = () => triggerNavRepaint(true);
+    const handleVisibilityRepaint = () => triggerNavRepaint();
+
     void loadUnseenCount();
     const refreshIntervalId = window.setInterval(() => {
       void loadUnseenCount();
     }, NOTIFICATIONS_LIVE_REFRESH_MS);
     window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
     window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('focus', handleFocusRepaint);
+    window.addEventListener('pageshow', handlePageShow);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityRepaint);
 
     return () => {
       isMounted = false;
       window.clearInterval(refreshIntervalId);
+      repaintTimers.forEach((timerId) => window.clearTimeout(timerId));
       window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleWindowFocus);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('focus', handleFocusRepaint);
+      window.removeEventListener('pageshow', handlePageShow);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityRepaint);
     };
   }, []);
 
   return (
-    <nav className="bottom-nav" aria-label="Navegación principal">
+    <nav
+      key={repaintKey}
+      className={`bottom-nav ${isRepainting ? 'bottom-nav--repainting' : ''}`}
+      aria-label="Navegación principal"
+    >
       {tabs.map((tab) => (
         <TabButton
           key={tab.key}
@@ -2827,12 +2948,20 @@ function TabButton({ current, target, label, icon, badgeCount = 0, onNavigate }:
   );
 }
 
-function ShellButton({ children, variant = 'secondary', fullWidth, type = 'button', onClick }: ShellButtonProps) {
+function ShellButton({
+  children,
+  variant = 'secondary',
+  fullWidth,
+  type = 'button',
+  onClick,
+  disabled = false,
+}: ShellButtonProps) {
   return (
     <button
       type={type}
       className={`shell-button shell-button--${variant} ${fullWidth ? 'shell-button--full' : ''}`}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>
