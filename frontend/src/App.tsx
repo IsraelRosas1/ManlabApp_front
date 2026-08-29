@@ -14,6 +14,7 @@ import {
   createBillingPortalSession,
   createNotificationPreference,
   createRetoDailyLog,
+  createSubscriptionCheckoutSession,
   deleteNotificationPreference,
   deleteUserNotification,
   disableOneSignalNotifications,
@@ -42,6 +43,7 @@ import {
   clearAuthSession,
   getIdentity,
   hasActiveSubscription,
+  hasCanceledSubscription,
   isAuthenticated,
   type LoginResponse,
   saveAuthSession,
@@ -477,6 +479,12 @@ function getInitialScreen(): ScreenKey {
   const hashRoute = hashValue.split('?')[0] as ScreenKey;
 
   if (['login', 'home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
+    const identity = getIdentity();
+
+    if (hasCanceledSubscription(identity) && hashRoute !== 'perfil') {
+      return 'perfil';
+    }
+
     if (protectedScreens.includes(hashRoute) && !isAuthenticated()) {
       return 'login';
     }
@@ -497,6 +505,11 @@ function useScreen() {
 
       if (nextScreen === 'login' && currentHashRoute !== 'login') {
         window.location.hash = '#login';
+        return;
+      }
+
+      if (nextScreen !== 'login' && currentHashRoute !== nextScreen) {
+        window.location.hash = `#${nextScreen}`;
         return;
       }
 
@@ -529,6 +542,13 @@ function useScreen() {
   }, [screen]);
 
   const navigate = (next: ScreenKey) => {
+    const identity = getIdentity();
+
+    if (hasCanceledSubscription(identity) && next !== 'perfil') {
+      window.location.hash = '#perfil';
+      return;
+    }
+
     if (protectedScreens.includes(next) && !isAuthenticated()) {
       window.location.hash = '#login';
       return;
@@ -560,6 +580,14 @@ export default function App() {
         const identity = await getCurrentIdentityMe();
 
         if (!isMounted) {
+          return;
+        }
+
+        if (hasCanceledSubscription(identity)) {
+          updateAuthIdentity(identity);
+          if (screen !== 'perfil') {
+            window.location.hash = '#perfil';
+          }
           return;
         }
 
@@ -707,7 +735,7 @@ function LoginScreen({
       const loginResponse = (await response.json()) as LoginResponse;
       const identity = await getIdentityMe(loginResponse);
 
-      if (!hasActiveSubscription(identity)) {
+      if (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity)) {
         clearAuthSession();
         throw new Error(SUBSCRIPTION_EXPIRED_MESSAGE);
       }
@@ -2553,6 +2581,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   );
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
+  const [isRenewingSubscription, setIsRenewingSubscription] = useState(false);
   const [billingPortalStatus, setBillingPortalStatus] = useState('');
   const [activeLegalDocument, setActiveLegalDocument] = useState<LegalDocumentKey | null>(null);
   const planLabel = formatPlanCode(identity?.planCode);
@@ -2560,6 +2589,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   const legalDocument = activeLegalDocument ? legalDocuments[activeLegalDocument] : null;
   const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
   const hasPaymentFailure = isPaymentFailureStatus(identity);
+  const isSubscriptionCanceled = hasCanceledSubscription(identity);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -2613,12 +2643,42 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
 
       window.location.assign(response.url);
     } catch (error) {
+      const status = (error as Error & { status?: number })?.status;
+
+      if (status === 409) {
+        setBillingPortalStatus('Tu suscripción está cancelada. Reactiva tu plan para volver a entrar.');
+        return;
+      }
+
       portalWindow?.close();
       setBillingPortalStatus(
         error instanceof Error ? error.message : 'No se pudo abrir el portal de facturación.',
       );
     } finally {
       setIsOpeningBillingPortal(false);
+    }
+  };
+
+  const handleRenewSubscription = async () => {
+    setBillingPortalStatus('');
+    setIsRenewingSubscription(true);
+
+    try {
+      const planCode = identity?.planCode || 'clon';
+      const email = identity?.email || '';
+      const response = await createSubscriptionCheckoutSession(planCode, email);
+
+      if (!response.url && !response.checkoutUrl) {
+        throw new Error('No se recibió la URL del checkout de renovación.');
+      }
+
+      window.location.assign(response.url || response.checkoutUrl || '#perfil');
+    } catch (error) {
+      setBillingPortalStatus(
+        error instanceof Error ? error.message : 'No se pudo crear la renovación de la suscripción.',
+      );
+    } finally {
+      setIsRenewingSubscription(false);
     }
   };
 
@@ -2679,15 +2739,21 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       <div className={`profile-card profile-card--accent ${hasPaymentFailure ? 'profile-card--warning' : ''}`}>
         <span className="profile-card__eyebrow">Estado actual</span>
         <strong>
-          {hasPaymentFailure
-            ? 'Pago fallido'
-            : identity?.subscriptionStatus === 'active'
-              ? 'Acceso activo'
-              : 'Revisar suscripción'}
+          {isSubscriptionCanceled
+            ? 'Suscripción cancelada'
+            : hasPaymentFailure
+              ? 'Pago fallido'
+              : identity?.subscriptionStatus === 'active'
+                ? 'Acceso activo'
+                : 'Revisar suscripción'}
         </strong>
         <p>Plan: {planLabel}</p>
         <p>Termina: {subscriptionEndDate}</p>
-        {hasPaymentFailure ? <p>Actualiza tu método de pago desde Stripe para evitar perder acceso.</p> : null}
+        {isSubscriptionCanceled ? (
+          <p>Tu acceso a Home, Reto, Avisos y Clon quedó bloqueado. Reactiva o actualiza tu plan desde el portal de facturación para volver a entrar.</p>
+        ) : hasPaymentFailure ? (
+          <p>Actualiza tu método de pago desde Stripe para evitar perder acceso.</p>
+        ) : null}
         <p>Edición: <strong>HIERRO</strong></p>
       </div>
 
@@ -2724,22 +2790,35 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         <span className="profile-card__eyebrow">Suscripción</span>
         <p>Administra pagos, método de cobro, facturas y cancelación desde Stripe.</p>
         <div className="profile-billing-actions">
-          <ShellButton
-            variant="primary"
-            fullWidth
-            onClick={handleOpenBillingPortal}
-            disabled={isOpeningBillingPortal}
-          >
-            {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'ADMINISTRAR SUSCRIPCIÓN'}
-          </ShellButton>
-          <ShellButton
-            variant="secondary"
-            fullWidth
-            onClick={handleOpenBillingPortal}
-            disabled={isOpeningBillingPortal}
-          >
-            {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'CANCELAR SUSCRIPCIÓN'}
-          </ShellButton>
+          {isSubscriptionCanceled ? (
+            <ShellButton
+              variant="primary"
+              fullWidth
+              onClick={handleRenewSubscription}
+              disabled={isRenewingSubscription}
+            >
+              {isRenewingSubscription ? 'REACTIVANDO...' : 'REACTIVAR SUSCRIPCIÓN'}
+            </ShellButton>
+          ) : (
+            <ShellButton
+              variant="primary"
+              fullWidth
+              onClick={handleOpenBillingPortal}
+              disabled={isOpeningBillingPortal}
+            >
+              {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'ADMINISTRAR SUSCRIPCIÓN'}
+            </ShellButton>
+          )}
+          {!isSubscriptionCanceled ? (
+            <ShellButton
+              variant="secondary"
+              fullWidth
+              onClick={handleOpenBillingPortal}
+              disabled={isOpeningBillingPortal}
+            >
+              {isOpeningBillingPortal ? 'ABRIENDO PORTAL...' : 'CANCELAR SUSCRIPCIÓN'}
+            </ShellButton>
+          ) : null}
         </div>
         {billingPortalStatus ? <p className="profile-billing-status">{billingPortalStatus}</p> : null}
       </div>
@@ -2782,6 +2861,7 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
   const [unseenCount, setUnseenCount] = useState(0);
   const [repaintKey, setRepaintKey] = useState(0);
   const [isRepainting, setIsRepainting] = useState(false);
+  const visibleTabs = hasCanceledSubscription(getIdentity()) ? tabs.filter((tab) => tab.key === 'perfil') : tabs;
 
   useEffect(() => {
     let isMounted = true;
@@ -2881,7 +2961,7 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
       className={`bottom-nav ${isRepainting ? 'bottom-nav--repainting' : ''}`}
       aria-label="Navegación principal"
     >
-      {tabs.map((tab) => (
+      {visibleTabs.map((tab) => (
         <TabButton
           key={tab.key}
           current={current}

@@ -97,10 +97,25 @@ export function hasActiveSubscription(identity?: IdentityMe | null) {
   return allowedStatuses.includes(identity.subscriptionStatus?.toLowerCase() || '');
 }
 
+export function hasCanceledSubscription(identity?: IdentityMe | null) {
+  if (!identity) {
+    return false;
+  }
+
+  const canceledStatuses = ['canceled', 'cancelled'];
+  return canceledStatuses.includes(identity.subscriptionStatus?.toLowerCase() || '');
+}
+
 export function isAuthenticated() {
   const session = readAuthSession();
 
-  if (!session?.accessToken || session.expiresAt <= Date.now() || !hasActiveSubscription(session.identity)) {
+  if (!session?.accessToken || session.expiresAt <= Date.now()) {
+    clearAuthSession();
+    return false;
+  }
+
+  const identity = session.identity;
+  if (!identity || (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity))) {
     clearAuthSession();
     return false;
   }

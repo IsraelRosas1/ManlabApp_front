@@ -128,6 +128,12 @@ export type BillingPortalResponse = {
   url: string;
 };
 
+export type CheckoutSessionResponse = {
+  url?: string;
+  checkoutUrl?: string;
+  sessionId?: string;
+};
+
 export async function claimRegisterUser(token: string, name: string, password: string) {
   const response = await fetch(apiUrl('/api/identity/claim-register'), {
     method: 'POST',
@@ -182,10 +188,35 @@ export async function createBillingPortalSession(returnUrl: string) {
 
   if (!response.ok) {
     const error = await getResponseErrorMessage(response);
-    throw new Error(error || 'No se pudo abrir el portal de facturación.');
+    const apiError = new Error(error || 'No se pudo abrir el portal de facturación.') as Error & { status?: number };
+    apiError.status = response.status;
+    throw apiError;
   }
 
   return (await response.json()) as BillingPortalResponse;
+}
+
+export async function createSubscriptionCheckoutSession(planCode: string, email: string) {
+  const response = await fetch(apiUrl('/api/checkout/suscripcion'), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      planCode,
+      email,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await getResponseErrorMessage(response);
+    const apiError = new Error(error || 'No se pudo crear la sesión de pago.') as Error & { status?: number };
+    apiError.status = response.status;
+    throw apiError;
+  }
+
+  return (await response.json()) as CheckoutSessionResponse;
 }
 
 export type RetoDailyLog = {
