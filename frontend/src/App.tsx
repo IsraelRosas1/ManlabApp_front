@@ -56,8 +56,7 @@ const protectedScreens: ScreenKey[] = ['home', 'contenido', 'reto', 'notificatio
 const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
 const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
-const SEEN_GLOBAL_NOTIFICATIONS_KEY = 'manlab.seenGlobalNotifications';
-const NOTIFICATIONS_LIVE_REFRESH_MS = 15000;
+const NOTIFICATIONS_LIVE_REFRESH_MS = 5000;
 const HOME_FEATURED_NOTIFICATIONS_COLLAPSED_COUNT = 5;
 const PERSONAL_NOTIFICATIONS_COLLAPSED_COUNT = 10;
 const BILLING_PORTAL_RETURN_REPAINT_KEY = 'manlab.billingPortalReturnRepaint';
@@ -337,20 +336,13 @@ function getHomeDailyTipPreview(notification: AppNotification | null) {
   return truncateWords(notification?.message || dailyTip.body, 12);
 }
 
+function isPaymentFailureStatus(identity = getIdentity()) {
+  const status = identity?.subscriptionStatus?.toLowerCase() || '';
+  return ['past_due', 'payment_failed', 'unpaid'].includes(status);
+}
+
 function notifyNotificationsChanged() {
   window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
-}
-
-function getSeenGlobalNotificationIds() {
-  try {
-    return new Set(JSON.parse(window.localStorage.getItem(SEEN_GLOBAL_NOTIFICATIONS_KEY) || '[]') as string[]);
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function saveSeenGlobalNotificationIds(ids: Set<string>) {
-  window.localStorage.setItem(SEEN_GLOBAL_NOTIFICATIONS_KEY, JSON.stringify([...ids]));
 }
 
 function isNotificationSeen(notification: DisplayNotification) {
@@ -358,21 +350,7 @@ function isNotificationSeen(notification: DisplayNotification) {
     return notification.isSeen;
   }
 
-  return getSeenGlobalNotificationIds().has(notification.id);
-}
-
-function markGlobalNotificationSeen(notificationId: string) {
-  const seenIds = getSeenGlobalNotificationIds();
-  seenIds.add(notificationId);
-  saveSeenGlobalNotificationIds(seenIds);
-}
-
-function mergeNotifications(userNotifications: UserNotification[], globalNotifications: AppNotification[]) {
-  const deliveredNotificationIds = new Set(userNotifications.map((notification) => notification.notificationId));
-  return [
-    ...userNotifications,
-    ...globalNotifications.filter((notification) => !deliveredNotificationIds.has(notification.id)),
-  ].sort((a, b) => new Date(getNotificationDate(b)).getTime() - new Date(getNotificationDate(a)).getTime());
+  return false;
 }
 
 function getReverseRetoDay(fallbackDayIndex: number) {
@@ -1580,6 +1558,10 @@ function getNotificationIcon(notification: DisplayNotification) {
   const type = notification.type?.toLowerCase() || '';
   const title = notification.title?.toLowerCase() || '';
 
+  if (icon === 'warning' || type.includes('payment') || title.includes('pago fallido')) {
+    return <WarningIcon />;
+  }
+
   if (icon === 'book' || type.includes('ebook') || title.includes('ebook') || title.includes('libro')) {
     return <BookIcon />;
   }
@@ -1667,7 +1649,7 @@ function NotificationRow({
     longPressTimer.current = window.setTimeout(() => {
       didLongPress.current = true;
       requestDelete();
-    }, 420);
+    }, 280);
   };
 
   const handlePointerUp = () => {
@@ -1780,12 +1762,14 @@ function NotificationOverflowModal({
   emptyMessage,
   onClose,
   onOpenNotification,
+  onRequestDelete,
 }: {
   title: string;
   items: DisplayNotification[];
   emptyMessage: string;
   onClose: () => void;
   onOpenNotification: (notification: DisplayNotification) => void;
+  onRequestDelete?: (notification: UserNotification) => void;
 }) {
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -1810,6 +1794,7 @@ function NotificationOverflowModal({
               key={getNotificationId(notification)}
               notification={notification}
               onOpen={() => onOpenNotification(notification)}
+              onRequestDelete={onRequestDelete}
             />
           ))}
         </div>
@@ -1842,15 +1827,11 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
     setStatusMessage('');
 
     try {
-      const [userNotifications, globalNotifications] = await Promise.all([
-        getMyNotifications(filter === 'unseen' ? false : undefined),
-        getLatestAppNotifications(50),
-      ]);
-      const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
+      const userNotifications = await getMyNotifications(filter === 'unseen' ? false : undefined);
       setNotifications(
         filter === 'unseen'
-          ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
-          : mergedNotifications,
+          ? userNotifications.filter((notification) => !isNotificationSeen(notification))
+          : userNotifications,
       );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'No se pudieron cargar los avisos.');
@@ -1876,17 +1857,13 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
 
     setIsLoading(true);
     setStatusMessage('');
-    Promise.all([
-      getMyNotifications(filter === 'unseen' ? false : undefined),
-      getLatestAppNotifications(50),
-    ])
-      .then(([userNotifications, globalNotifications]) => {
+    getMyNotifications(filter === 'unseen' ? false : undefined)
+      .then((userNotifications) => {
         if (isMounted) {
-          const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
           setNotifications(
             filter === 'unseen'
-              ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
-              : mergedNotifications,
+              ? userNotifications.filter((notification) => !isNotificationSeen(notification))
+              : userNotifications,
           );
         }
       })
@@ -1941,18 +1918,14 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
 
     const refreshNotificationsLive = async () => {
       try {
-        const [userNotifications, globalNotifications] = await Promise.all([
-          getMyNotifications(filter === 'unseen' ? false : undefined),
-          getLatestAppNotifications(50),
-        ]);
+        const userNotifications = await getMyNotifications(filter === 'unseen' ? false : undefined);
         if (!isMounted) {
           return;
         }
-        const mergedNotifications = mergeNotifications(userNotifications, globalNotifications);
         setNotifications(
           filter === 'unseen'
-            ? mergedNotifications.filter((notification) => !isNotificationSeen(notification))
-            : mergedNotifications,
+            ? userNotifications.filter((notification) => !isNotificationSeen(notification))
+            : userNotifications,
         );
       } catch {
         // Keep current list on transient live-refresh failures.
@@ -1994,11 +1967,6 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
     }
 
     if (!('deliveryId' in notification)) {
-      markGlobalNotificationSeen(notification.id);
-      setNotifications((current) =>
-        current.filter((item) => filter !== 'unseen' || getNotificationId(item) !== getNotificationId(notification)),
-      );
-      notifyNotificationsChanged();
       return;
     }
 
@@ -2025,12 +1993,6 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
 
     try {
       await markAllNotificationsSeen();
-      const globalIds = notifications
-        .filter((notification): notification is AppNotification => !('deliveryId' in notification))
-        .map((notification) => notification.id);
-      const seenGlobalIds = getSeenGlobalNotificationIds();
-      globalIds.forEach((id) => seenGlobalIds.add(id));
-      saveSeenGlobalNotificationIds(seenGlobalIds);
       setNotifications((current) =>
         current
           .map((notification) =>
@@ -2397,6 +2359,10 @@ function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) =
             setIsPersonalOverflowOpen(false);
             void openNotification(notification);
           }}
+          onRequestDelete={(notification) => {
+            setIsPersonalOverflowOpen(false);
+            setNotificationPendingDelete(notification);
+          }}
         />
       ) : null}
       {notificationPendingDelete ? (
@@ -2593,6 +2559,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
   const legalDocument = activeLegalDocument ? legalDocuments[activeLegalDocument] : null;
   const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
+  const hasPaymentFailure = isPaymentFailureStatus(identity);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -2709,11 +2676,18 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         </div>
       </div>
 
-      <div className="profile-card profile-card--accent">
+      <div className={`profile-card profile-card--accent ${hasPaymentFailure ? 'profile-card--warning' : ''}`}>
         <span className="profile-card__eyebrow">Estado actual</span>
-        <strong>{identity?.subscriptionStatus === 'active' ? 'Acceso activo' : 'Revisar suscripción'}</strong>
+        <strong>
+          {hasPaymentFailure
+            ? 'Pago fallido'
+            : identity?.subscriptionStatus === 'active'
+              ? 'Acceso activo'
+              : 'Revisar suscripción'}
+        </strong>
         <p>Plan: {planLabel}</p>
         <p>Termina: {subscriptionEndDate}</p>
+        {hasPaymentFailure ? <p>Actualiza tu método de pago desde Stripe para evitar perder acceso.</p> : null}
         <p>Edición: <strong>HIERRO</strong></p>
       </div>
 
@@ -2819,16 +2793,9 @@ function BottomNav({ current, onNavigate }: { current: ScreenKey; onNavigate: (s
       }
 
       try {
-        const [result, globalNotifications] = await Promise.all([
-          getUnseenNotificationCount(),
-          getLatestAppNotifications(50),
-        ]);
-        const seenGlobalIds = getSeenGlobalNotificationIds();
-        const unseenGlobalCount = globalNotifications.filter(
-          (notification) => !seenGlobalIds.has(notification.id),
-        ).length;
+        const result = await getUnseenNotificationCount();
         if (isMounted) {
-          setUnseenCount(result.count + unseenGlobalCount);
+          setUnseenCount(result.count);
         }
       } catch {
         if (isMounted) {
