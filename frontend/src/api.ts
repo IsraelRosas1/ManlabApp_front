@@ -219,6 +219,28 @@ export async function createSubscriptionCheckoutSession(planCode: string, email:
   return (await response.json()) as CheckoutSessionResponse;
 }
 
+export async function upgradeSubscription(planCode: string) {
+  const response = await fetch(apiUrl('/api/me/upgrade'), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      planCode,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await getResponseErrorMessage(response);
+    const apiError = new Error(error || 'No se pudo mejorar la suscripción.') as Error & { status?: number };
+    apiError.status = response.status;
+    throw apiError;
+  }
+
+  return (await response.json()) as Record<string, unknown>;
+}
+
 export type RetoDailyLog = {
   dayIndex: number;
   logDate: string;

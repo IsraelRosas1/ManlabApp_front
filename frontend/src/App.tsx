@@ -15,6 +15,7 @@ import {
   createNotificationPreference,
   createRetoDailyLog,
   createSubscriptionCheckoutSession,
+  upgradeSubscription,
   deleteNotificationPreference,
   deleteUserNotification,
   disableOneSignalNotifications,
@@ -111,6 +112,7 @@ type ShellButtonProps = {
   type?: 'button' | 'submit';
   onClick?: () => void;
   disabled?: boolean;
+  style?: React.CSSProperties;
 };
 
 type DisplayNotification = AppNotification | UserNotification;
@@ -2582,9 +2584,13 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isRenewingSubscription, setIsRenewingSubscription] = useState(false);
+  const [isUpgradingSubscription, setIsUpgradingSubscription] = useState(false);
+  const [isUpgradeConfirmationOpen, setIsUpgradeConfirmationOpen] = useState(false);
+  const [upgradePassword, setUpgradePassword] = useState('');
   const [billingPortalStatus, setBillingPortalStatus] = useState('');
   const [activeLegalDocument, setActiveLegalDocument] = useState<LegalDocumentKey | null>(null);
   const planLabel = formatPlanCode(identity?.planCode);
+  const canUpgradeToFullApp = identity?.planCode?.toLowerCase() === 'clon';
   const subscriptionEndDate = formatSubscriptionEndDate(identity?.currentPeriodEnd);
   const legalDocument = activeLegalDocument ? legalDocuments[activeLegalDocument] : null;
   const adjustedCurrentStreak = getAdjustedCurrentStreak(streak, recentLogs);
@@ -2679,6 +2685,71 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       );
     } finally {
       setIsRenewingSubscription(false);
+    }
+  };
+
+  const handleUpgradeSubscription = () => {
+    if (!identity?.currentPeriodEnd) {
+      setBillingPortalStatus('No pudimos detectar la fecha de tu suscripción actual.');
+      return;
+    }
+
+    setUpgradePassword('');
+    setIsUpgradeConfirmationOpen(true);
+  };
+
+  const validateCurrentPassword = async (password: string) => {
+    if (!identity?.email) {
+      throw new Error('No se pudo validar la cuenta actual.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: identity.email,
+        password,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('La contraseña actual no coincide.');
+    }
+  };
+
+  const confirmUpgradeSubscription = async () => {
+    const expirationText = formatSubscriptionEndDate(identity?.currentPeriodEnd);
+
+    if (!identity?.currentPeriodEnd || !expirationText) {
+      setBillingPortalStatus('No pudimos detectar la fecha de tu suscripción actual.');
+      setIsUpgradeConfirmationOpen(false);
+      return;
+    }
+
+    if (!upgradePassword.trim()) {
+      setBillingPortalStatus('Escribe tu contraseña para confirmar el cambio.');
+      return;
+    }
+
+    setBillingPortalStatus('');
+    setIsUpgradingSubscription(true);
+    setIsUpgradeConfirmationOpen(false);
+
+    try {
+      await validateCurrentPassword(upgradePassword);
+      await upgradeSubscription('app_mensual');
+      const refreshedIdentity = await getCurrentIdentityMe();
+      updateAuthIdentity(refreshedIdentity);
+      setBillingPortalStatus('Tu suscripción se mejoró y el pago se procesó de inmediato.');
+    } catch (error) {
+      setBillingPortalStatus(
+        error instanceof Error ? error.message : 'No se pudo mejorar la suscripción.',
+      );
+    } finally {
+      setIsUpgradingSubscription(false);
+      setUpgradePassword('');
     }
   };
 
@@ -2820,8 +2891,82 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
             </ShellButton>
           ) : null}
         </div>
+        {canUpgradeToFullApp ? (
+          <div className="profile-billing-actions" style={{ marginTop: '0.75rem' }}>
+            <ShellButton
+              variant="primary"
+              fullWidth
+              onClick={handleUpgradeSubscription}
+              disabled={isUpgradingSubscription}
+              style={{
+                background: 'linear-gradient(180deg, #39d98a 0%, #1fae60 100%)',
+                color: '#071b10',
+                boxShadow: '0 10px 22px rgba(57, 217, 138, 0.18)',
+              }}
+            >
+              {isUpgradingSubscription ? 'MEJORANDO...' : 'MEJORAR SUSCRIPCIÓN'}
+            </ShellButton>
+          </div>
+        ) : null}
         {billingPortalStatus ? <p className="profile-billing-status">{billingPortalStatus}</p> : null}
       </div>
+
+      {isUpgradeConfirmationOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsUpgradeConfirmationOpen(false)}>
+          <div
+            className="profile-legal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upgrade-confirm-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="profile-legal-modal__header">
+              <h3 id="upgrade-confirm-title">Confirmar mejora</h3>
+              <button type="button" onClick={() => setIsUpgradeConfirmationOpen(false)} aria-label="Cerrar">
+                ×
+              </button>
+            </div>
+
+            <p>
+              Vas a cambiar tu suscripción a la app completa.
+            </p>
+            <p>
+              Se te cobrará solo por los días que te quedan de tu suscripción actual hasta{' '}
+              <strong>{formatSubscriptionEndDate(identity?.currentPeriodEnd)}</strong>.
+            </p>
+
+            <div className="field" style={{ marginTop: '1rem' }}>
+              <span>CONTRASEÑA</span>
+              <input
+                type="password"
+                value={upgradePassword}
+                onChange={(event) => setUpgradePassword(event.target.value)}
+                placeholder="Escribe tu contraseña"
+                autoComplete="current-password"
+              />
+            </div>
+
+            <div className="profile-billing-actions" style={{ marginTop: '1.25rem' }}>
+              <ShellButton variant="secondary" fullWidth onClick={() => setIsUpgradeConfirmationOpen(false)}>
+                CANCELAR
+              </ShellButton>
+              <ShellButton
+                variant="primary"
+                fullWidth
+                onClick={confirmUpgradeSubscription}
+                disabled={isUpgradingSubscription}
+                style={{
+                  background: 'linear-gradient(180deg, #39d98a 0%, #1fae60 100%)',
+                  color: '#071b10',
+                  boxShadow: '0 10px 22px rgba(57, 217, 138, 0.18)',
+                }}
+              >
+                CONFIRMAR
+              </ShellButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ShellButton variant="secondary" fullWidth onClick={handleLogout}>
         CERRAR SESIÓN
@@ -3002,6 +3147,7 @@ function ShellButton({
   type = 'button',
   onClick,
   disabled = false,
+  style,
 }: ShellButtonProps) {
   return (
     <button
@@ -3009,6 +3155,7 @@ function ShellButton({
       className={`shell-button shell-button--${variant} ${fullWidth ? 'shell-button--full' : ''}`}
       onClick={onClick}
       disabled={disabled}
+      style={style}
     >
       {children}
     </button>
