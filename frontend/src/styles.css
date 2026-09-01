@@ -2401,29 +2401,39 @@ img {
 }
 
 .profile-legal-list {
-  display: grid;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.025);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .profile-legal-list--featured {
-  border-color: rgba(255, 255, 255, 0.06);
+  border: 0;
   background: transparent;
 }
 
 .profile-legal-list button {
-  min-height: 46px;
+  min-height: unset;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(245, 240, 232, 0.78);
-  font-weight: 800;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(245, 240, 232, 0.72);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   text-align: center;
+  white-space: nowrap;
   cursor: pointer;
+  position: relative;
   transition: color 0.2s ease, opacity 0.2s ease;
 }
 
@@ -2431,54 +2441,48 @@ img {
   display: none;
 }
 
-.profile-legal-list button:last-child {
-  border-bottom: 0;
+.profile-legal-list button + button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 1px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .profile-legal-list button:hover {
   color: var(--oro);
 }
 
-@media (min-width: 860px) {
+@media (max-width: 859px) {
   .profile-legal-list {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr;
+    width: 100%;
     gap: 0;
-    border: 0;
-    background: transparent;
-    border-radius: 0;
-    overflow: visible;
-  }
-
-  .profile-legal-list--featured {
-    border: 0;
-    background: transparent;
   }
 
   .profile-legal-list button {
-    min-height: unset;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 0 18px;
-    color: rgba(245, 240, 232, 0.72);
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    position: relative;
+    justify-content: center;
+    padding: 0 4px;
+    font-size: 0.74rem;
   }
 
-  .profile-legal-list button + button::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    width: 1px;
-    height: 16px;
-    transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.18);
+  .profile-legal-list button::before {
+    display: none;
+  }
+
+  .profile-legal-list button:first-child,
+  .profile-legal-list button:nth-child(2) {
+    justify-content: flex-start;
+    padding-left: 0;
+  }
+
+  .profile-legal-list button:last-child {
+    justify-content: flex-end;
+    padding-right: 0;
   }
 }
 
