@@ -18,6 +18,7 @@ export type IdentityMe = {
   subscriptionStatus: string;
   currentPeriodEnd: string;
   planCode: string;
+  entitlements?: string[];
   pushEnabled?: boolean;
 };
 
@@ -104,6 +105,31 @@ export function hasCanceledSubscription(identity?: IdentityMe | null) {
 
   const canceledStatuses = ['canceled', 'cancelled'];
   return canceledStatuses.includes(identity.subscriptionStatus?.toLowerCase() || '');
+}
+
+export function getEntitlements(identity?: IdentityMe | null): string[] {
+  if (!identity) {
+    return [];
+  }
+
+  const rawEntitlements = Array.isArray(identity.entitlements) ? identity.entitlements : [];
+  return rawEntitlements.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
+}
+
+export function hasEntitlement(identity: IdentityMe | null | undefined, entitlementCode: string) {
+  const normalizedClaim = entitlementCode.trim().toLowerCase();
+
+  if (getEntitlements(identity).some((value) => value.toLowerCase() === normalizedClaim)) {
+    return true;
+  }
+
+  const planCode = identity?.planCode?.trim().toLowerCase();
+
+  if (normalizedClaim === 'udh_audios') {
+    return planCode === 'app_mensual' || planCode === 'mensual' || planCode === 'app_annual' || planCode === 'anual';
+  }
+
+  return false;
 }
 
 export function isAuthenticated() {

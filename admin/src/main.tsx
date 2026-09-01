@@ -1,7 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
+  deleteAdminAudio,
   deleteAdminNotification,
+  getAdminAudios,
   getAdminEntitlements,
   getAdminNotificationDetail,
   getAdminNotifications,
@@ -10,8 +12,11 @@ import {
   grantManualEntitlement,
   loginAdmin,
   sendAdminNotification,
+  updateAdminAudio,
   updateAdminNotification,
   updateUserSubscription,
+  uploadAdminAudio,
+  type AdminAudio,
   type AdminEntitlement,
   type AdminEntitlementFilters,
   type AdminNotification,
@@ -22,6 +27,7 @@ import {
   type AdminUserFilters,
   type GrantEntitlementRequest,
   type SendAdminNotificationRequest,
+  type UpdateAdminAudioRequest,
   type UpdateAdminNotificationRequest,
   type UpdateSubscriptionRequest,
 } from './api';
@@ -29,7 +35,7 @@ import './styles.css';
 
 const ADMIN_TOKEN_KEY = 'manlab.admin.token';
 const ADMIN_EMAIL_KEY = 'manlab.admin.email';
-type AdminSection = 'users' | 'entitlements' | 'notifications';
+type AdminSection = 'users' | 'entitlements' | 'notifications' | 'audios';
 
 const emptyFilters: AdminUserFilters = {
   search: '',
@@ -146,6 +152,12 @@ const notificationPresets: Record<
 };
 
 const defaultNotificationForm: SendAdminNotificationRequest = notificationPresets.live_alert;
+const defaultAudioForm = {
+  title: '',
+  category: '',
+  durationS: '',
+  sortOrder: '',
+};
 const subscriptionStatuses = ['active', 'past_due', 'canceled', 'none'];
 const planCodes = ['mensual', 'anual', 'fundador'];
 const notificationIcons = ['video', 'book', 'bulb', 'bell', 'live'];
@@ -176,6 +188,27 @@ function formatDate(value: string) {
     month: 'short',
     day: '2-digit',
   }).format(date);
+}
+
+function formatDuration(durationS?: number | null) {
+  if (!durationS || durationS < 1) {
+    return 'Sin duración';
+  }
+
+  const minutes = Math.floor(durationS / 60);
+  const seconds = Math.floor(durationS % 60);
+
+  if (minutes < 60) {
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function getAudioSource(audio: AdminAudio) {
+  return audio.url || audio.audioUrl || audio.streamUrl || audio.fileUrl || audio.playbackUrl || '';
 }
 
 function normalizeStatus(status: string) {
@@ -275,16 +308,21 @@ function App() {
   const [notificationHistorySearch, setNotificationHistorySearch] = React.useState('');
   const [notificationHistoryType, setNotificationHistoryType] = React.useState('');
   const [notificationHistoryStatus, setNotificationHistoryStatus] = React.useState('');
+  const [audioForm, setAudioForm] = React.useState(defaultAudioForm);
+  const [audioFile, setAudioFile] = React.useState<File | null>(null);
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [entitlements, setEntitlements] = React.useState<AdminEntitlement[]>([]);
   const [notifications, setNotifications] = React.useState<AdminNotification[]>([]);
+  const [audios, setAudios] = React.useState<AdminAudio[]>([]);
   const [notificationDetail, setNotificationDetail] = React.useState<AdminNotificationDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isLoadingEntitlements, setIsLoadingEntitlements] = React.useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = React.useState(false);
+  const [isLoadingAudios, setIsLoadingAudios] = React.useState(false);
   const [isLoadingNotificationDetail, setIsLoadingNotificationDetail] = React.useState(false);
   const [isGranting, setIsGranting] = React.useState(false);
   const [isSendingNotification, setIsSendingNotification] = React.useState(false);
+  const [isUploadingAudio, setIsUploadingAudio] = React.useState(false);
   const [isSigningIn, setIsSigningIn] = React.useState(false);
   const [emailError, setEmailError] = React.useState('');
   const [passwordError, setPasswordError] = React.useState('');
@@ -386,6 +424,34 @@ function App() {
     }
   }, [loadNotifications, section]);
 
+  const loadAudios = React.useCallback(async () => {
+    if (!token) {
+      return;
+    }
+
+    setIsLoadingAudios(true);
+    setErrorMessage('');
+
+    try {
+      const nextAudios = await getAdminAudios(token);
+      setAudios(
+        [...nextAudios].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title),
+        ),
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudieron cargar los audios.');
+    } finally {
+      setIsLoadingAudios(false);
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    if (section === 'audios') {
+      void loadAudios();
+    }
+  }, [loadAudios, section]);
+
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedEmail = email.trim();
@@ -434,6 +500,7 @@ function App() {
     setUsers([]);
     setEntitlements([]);
     setNotifications([]);
+    setAudios([]);
     setNotificationDetail(null);
     window.localStorage.removeItem(ADMIN_TOKEN_KEY);
   };
@@ -481,6 +548,13 @@ function App() {
 
   const updateNotificationForm = (key: keyof SendAdminNotificationRequest, value: string | null) => {
     setNotificationForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const updateAudioForm = (key: keyof typeof defaultAudioForm, value: string) => {
+    setAudioForm((current) => ({
       ...current,
       [key]: value,
     }));
@@ -595,6 +669,96 @@ function App() {
     }
   };
 
+  const handleUploadAudio = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!token) {
+      setErrorMessage('Inicia sesión como admin para subir audios.');
+      return;
+    }
+
+    if (!audioFile) {
+      setErrorMessage('Selecciona un archivo de audio.');
+      return;
+    }
+
+    if (!audioForm.title.trim()) {
+      setErrorMessage('Escribe un título para el audio.');
+      return;
+    }
+
+    setIsUploadingAudio(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await uploadAdminAudio(token, {
+        file: audioFile,
+        title: audioForm.title.trim(),
+        category: audioForm.category.trim(),
+        durationS: audioForm.durationS ? Number(audioForm.durationS) : null,
+        sortOrder: audioForm.sortOrder ? Number(audioForm.sortOrder) : null,
+      });
+      setAudioForm(defaultAudioForm);
+      setAudioFile(null);
+      setSuccessMessage('Audio subido.');
+      await loadAudios();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo subir el audio.');
+    } finally {
+      setIsUploadingAudio(false);
+    }
+  };
+
+  const handleUpdateAudio = async (
+    audioId: string,
+    data: UpdateAdminAudioRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => {
+    if (!token) {
+      setErrorMessage('Inicia sesión como admin para editar audios.');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await updateAdminAudio(token, audioId, data);
+      setSuccessMessage('Audio actualizado.');
+      await loadAudios();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo actualizar el audio.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAudio = async (
+    audioId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
+  ) => {
+    if (!token) {
+      setErrorMessage('Inicia sesión como admin para eliminar audios.');
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await deleteAdminAudio(token, audioId);
+      setSuccessMessage('Audio eliminado.');
+      await loadAudios();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo eliminar el audio.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleUpdateSubscription = async (
     user: AdminUser,
     subscriptionId: string,
@@ -676,6 +840,8 @@ function App() {
     (total, notification) => total + notification.openedDeliveries,
     0,
   );
+  const audioCategories = new Set(audios.map((audio) => audio.category?.trim()).filter(Boolean)).size;
+  const totalAudioSeconds = audios.reduce((total, audio) => total + (audio.durationS || 0), 0);
   const filteredNotifications = notifications.filter((notification) => {
     const normalizedSearch = notificationHistorySearch.trim().toLowerCase();
     const normalizedType = notificationHistoryType.trim().toLowerCase();
@@ -728,6 +894,14 @@ function App() {
             <span aria-hidden="true">✉</span>
             Avisos
           </button>
+          <button
+            className={`sidebar-link ${section === 'audios' ? 'is-active' : ''}`}
+            type="button"
+            onClick={() => setSection('audios')}
+          >
+            <span aria-hidden="true">♪</span>
+            Audios
+          </button>
         </nav>
       </aside>
 
@@ -736,7 +910,13 @@ function App() {
           <div>
             <p className="eyebrow">Admin API</p>
             <h2>
-              {section === 'users' ? 'Usuarios' : section === 'entitlements' ? 'Entitlements' : 'Avisos'}
+              {section === 'users'
+                ? 'Usuarios'
+                : section === 'entitlements'
+                  ? 'Entitlements'
+                  : section === 'notifications'
+                    ? 'Avisos'
+                    : 'Audios'}
             </h2>
           </div>
           <button
@@ -747,11 +927,13 @@ function App() {
                 ? loadUsers
                 : section === 'entitlements'
                   ? loadEntitlements
-                  : loadNotifications
+                  : section === 'notifications'
+                    ? loadNotifications
+                    : loadAudios
             }
-            disabled={!isConnected || isLoading || isLoadingEntitlements || isLoadingNotifications}
+            disabled={!isConnected || isLoading || isLoadingEntitlements || isLoadingNotifications || isLoadingAudios}
           >
-            {isLoading || isLoadingEntitlements || isLoadingNotifications ? 'Cargando' : 'Actualizar'}
+            {isLoading || isLoadingEntitlements || isLoadingNotifications || isLoadingAudios ? 'Cargando' : 'Actualizar'}
           </button>
         </header>
 
@@ -946,7 +1128,7 @@ function App() {
               />
             </section>
           </>
-        ) : (
+        ) : section === 'notifications' ? (
           <>
             <section className="stats-grid" aria-label="Resumen">
               <SummaryCard label="Avisos" value={notifications.length.toString()} />
@@ -1130,6 +1312,94 @@ function App() {
                 />
               </section>
             ) : null}
+          </>
+        ) : (
+          <>
+            <section className="stats-grid" aria-label="Resumen">
+              <SummaryCard label="Audios" value={audios.length.toString()} />
+              <SummaryCard label="Categorías" value={audioCategories.toString()} />
+              <SummaryCard label="Duración" value={formatDuration(totalAudioSeconds)} tone="active" />
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h3>Subir audio</h3>
+                  <p>POST /api/admin/audios/upload con archivo y metadata para Bunny.net.</p>
+                </div>
+              </div>
+
+              <form className="audio-upload-form" onSubmit={handleUploadAudio}>
+                <label>
+                  Archivo
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                    required
+                  />
+                </label>
+                <label>
+                  Título
+                  <input
+                    value={audioForm.title}
+                    onChange={(event) => updateAudioForm('title', event.target.value)}
+                    placeholder="Nombre visible"
+                    required
+                  />
+                </label>
+                <label>
+                  Categoría
+                  <input
+                    value={audioForm.category}
+                    onChange={(event) => updateAudioForm('category', event.target.value)}
+                    placeholder="Audiolibro, clase..."
+                  />
+                </label>
+                <label>
+                  Duración en segundos
+                  <input
+                    type="number"
+                    min="0"
+                    value={audioForm.durationS}
+                    onChange={(event) => updateAudioForm('durationS', event.target.value)}
+                    placeholder="3600"
+                  />
+                </label>
+                <label>
+                  Orden
+                  <input
+                    type="number"
+                    value={audioForm.sortOrder}
+                    onChange={(event) => updateAudioForm('sortOrder', event.target.value)}
+                    placeholder="1"
+                  />
+                </label>
+                <button type="submit" disabled={!isConnected || isUploadingAudio}>
+                  {isUploadingAudio ? 'Subiendo' : 'Subir audio'}
+                </button>
+              </form>
+
+              {successMessage ? <div className="success-banner">{successMessage}</div> : null}
+              {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h3>Biblioteca de audios</h3>
+                  <p>GET /api/admin/audios.</p>
+                </div>
+              </div>
+
+              <AudiosTable
+                audios={audios}
+                isConnected={isConnected}
+                isLoading={isLoadingAudios}
+                onUpdateAudio={handleUpdateAudio}
+                onDeleteAudio={handleDeleteAudio}
+              />
+            </section>
           </>
         )}
       </section>
@@ -1517,6 +1787,203 @@ function EntitlementsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function AudiosTable({
+  audios,
+  isConnected,
+  isLoading,
+  onUpdateAudio,
+  onDeleteAudio,
+}: {
+  audios: AdminAudio[];
+  isConnected: boolean;
+  isLoading: boolean;
+  onUpdateAudio: (
+    audioId: string,
+    data: UpdateAdminAudioRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => Promise<void>;
+  onDeleteAudio: (
+    audioId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
+  ) => Promise<void>;
+}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Audio</th>
+            <th>Categoría</th>
+            <th>Duración</th>
+            <th>Orden</th>
+            <th>URL</th>
+            <th>Editar</th>
+            <th>Eliminar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {audios.map((audio) => (
+            <AudioRow
+              key={audio.id}
+              audio={audio}
+              onUpdateAudio={onUpdateAudio}
+              onDeleteAudio={onDeleteAudio}
+            />
+          ))}
+          {!isLoading && audios.length === 0 ? (
+            <tr>
+              <td className="empty-state" colSpan={7}>
+                {isConnected ? 'No hay audios subidos.' : 'Inicia sesión como admin para cargar audios.'}
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AudioRow({
+  audio,
+  onUpdateAudio,
+  onDeleteAudio,
+}: {
+  audio: AdminAudio;
+  onUpdateAudio: (
+    audioId: string,
+    data: UpdateAdminAudioRequest,
+    setIsSaving: (isSaving: boolean) => void,
+  ) => Promise<void>;
+  onDeleteAudio: (
+    audioId: string,
+    setIsDeleting: (isDeleting: boolean) => void,
+  ) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [form, setForm] = React.useState({
+    title: audio.title,
+    category: audio.category || '',
+    durationS: audio.durationS?.toString() || '',
+    sortOrder: audio.sortOrder?.toString() || '',
+  });
+  const audioSource = getAudioSource(audio);
+
+  React.useEffect(() => {
+    setForm({
+      title: audio.title,
+      category: audio.category || '',
+      durationS: audio.durationS?.toString() || '',
+      sortOrder: audio.sortOrder?.toString() || '',
+    });
+  }, [audio]);
+
+  const updateForm = (key: keyof typeof form, value: string) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await onUpdateAudio(
+      audio.id,
+      {
+        title: form.title.trim(),
+        category: form.category.trim() || null,
+        durationS: form.durationS ? Number(form.durationS) : null,
+        sortOrder: form.sortOrder ? Number(form.sortOrder) : 0,
+      },
+      setIsSaving,
+    );
+  };
+
+  const handleDelete = async () => {
+    const shouldDelete = window.confirm(`Eliminar "${audio.title}"?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    await onDeleteAudio(audio.id, setIsDeleting);
+  };
+
+  return (
+    <>
+      <tr>
+        <td>
+          <strong>{audio.title}</strong>
+          <span>{audio.id}</span>
+        </td>
+        <td>{audio.category || 'Sin categoría'}</td>
+        <td>{formatDuration(audio.durationS)}</td>
+        <td>{audio.sortOrder ?? 0}</td>
+        <td>
+          {audioSource ? (
+            <a className="mono-link" href={audioSource} target="_blank" rel="noreferrer">
+              Abrir
+            </a>
+          ) : (
+            'Sin URL'
+          )}
+        </td>
+        <td>
+          <button className="table-action" type="button" onClick={() => setIsEditing((current) => !current)}>
+            {isEditing ? 'Cerrar' : 'Editar'}
+          </button>
+        </td>
+        <td>
+          <button
+            className="table-action table-action--danger"
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Eliminando' : 'Eliminar'}
+          </button>
+        </td>
+      </tr>
+      {isEditing ? (
+        <tr>
+          <td colSpan={7} className="inline-editor-cell">
+            <form className="audio-editor" onSubmit={handleSubmit}>
+              <label>
+                Título
+                <input value={form.title} onChange={(event) => updateForm('title', event.target.value)} required />
+              </label>
+              <label>
+                Categoría
+                <input value={form.category} onChange={(event) => updateForm('category', event.target.value)} />
+              </label>
+              <label>
+                Duración
+                <input
+                  type="number"
+                  min="0"
+                  value={form.durationS}
+                  onChange={(event) => updateForm('durationS', event.target.value)}
+                />
+              </label>
+              <label>
+                Orden
+                <input
+                  type="number"
+                  value={form.sortOrder}
+                  onChange={(event) => updateForm('sortOrder', event.target.value)}
+                />
+              </label>
+              <button type="submit" disabled={isSaving}>
+                {isSaving ? 'Guardando' : 'Guardar'}
+              </button>
+            </form>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 

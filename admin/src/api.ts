@@ -153,6 +153,36 @@ export type LoginResponse = {
   refreshToken?: string;
 };
 
+export type AdminAudio = {
+  id: string;
+  title: string;
+  category?: string | null;
+  durationS?: number | null;
+  sortOrder?: number;
+  url?: string | null;
+  audioUrl?: string | null;
+  streamUrl?: string | null;
+  fileUrl?: string | null;
+  playbackUrl?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type UploadAdminAudioRequest = {
+  file: File;
+  title: string;
+  category?: string;
+  durationS?: number | null;
+  sortOrder?: number | null;
+};
+
+export type UpdateAdminAudioRequest = {
+  title?: string;
+  category?: string | null;
+  durationS?: number | null;
+  sortOrder?: number;
+};
+
 function apiUrl(path: string) {
   if (!API_BASE_URL) {
     throw new Error('Configura VITE_API_BASE_URL para conectar con el backend.');
@@ -339,6 +369,80 @@ export async function updateAdminNotification(
 
 export async function deleteAdminNotification(token: string, notificationId: string) {
   const response = await fetch(apiUrl(`/api/admin/notifications/${notificationId}`), {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+}
+
+export async function getAdminAudios(token: string) {
+  const response = await fetch(apiUrl('/api/admin/audios'), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as AdminAudio[];
+}
+
+export async function uploadAdminAudio(token: string, data: UploadAdminAudioRequest) {
+  const formData = new FormData();
+  formData.set('file', data.file);
+  formData.set('title', data.title);
+
+  if (data.category?.trim()) {
+    formData.set('category', data.category.trim());
+  }
+
+  if (data.durationS !== undefined && data.durationS !== null) {
+    formData.set('durationS', String(data.durationS));
+  }
+
+  if (data.sortOrder !== undefined && data.sortOrder !== null) {
+    formData.set('sortOrder', String(data.sortOrder));
+  }
+
+  const response = await fetch(apiUrl('/api/admin/audios/upload'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as AdminAudio;
+}
+
+export async function updateAdminAudio(token: string, audioId: string, data: UpdateAdminAudioRequest) {
+  const response = await fetch(apiUrl(`/api/admin/audios/${audioId}`), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+}
+
+export async function deleteAdminAudio(token: string, audioId: string) {
+  const response = await fetch(apiUrl(`/api/admin/audios/${audioId}`), {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,

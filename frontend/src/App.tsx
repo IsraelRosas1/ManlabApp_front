@@ -9,6 +9,7 @@ import {
   type RetoDailyLog,
   type RetoDailyLogPatch,
   type RetoStreak,
+  type UserAudio,
   type UserNotification,
   type WeakLink,
   createBillingPortalSession,
@@ -19,6 +20,8 @@ import {
   deleteNotificationPreference,
   deleteUserNotification,
   disableOneSignalNotifications,
+  getAudio,
+  getAudios,
   getCurrentIdentityMe,
   getIdentityMe,
   getLatestAppNotifications,
@@ -42,9 +45,11 @@ import {
 import {
   SUBSCRIPTION_EXPIRED_MESSAGE,
   clearAuthSession,
+  getEntitlements,
   getIdentity,
   hasActiveSubscription,
   hasCanceledSubscription,
+  hasEntitlement,
   isAuthenticated,
   type LoginResponse,
   saveAuthSession,
@@ -187,6 +192,7 @@ type ContentItem = {
   status: string;
   ctaLabel: string;
   locked?: boolean;
+  requiredEntitlement?: string;
 };
 
 type ContentSection = {
@@ -197,21 +203,6 @@ type ContentSection = {
 };
 
 const contentSections: ContentSection[] = [
-  {
-    eyebrow: 'Universidad del Hombre',
-    title: 'Videos',
-    summary: 'Clases en video que se irán cargando más adelante con la suscripción activa.',
-    items: [
-      {
-        label: 'UNIVERSIDAD DEL HOMBRE',
-        title: 'Biblioteca audiovisual',
-        description: 'Lecciones grabadas y material profundo para la membresía.',
-        status: 'Disponible con suscripción',
-        ctaLabel: 'PRÓXIMAMENTE',
-        locked: true,
-      },
-    ],
-  },
   {
     eyebrow: 'Cursos digitales',
     title: 'FORMACIÓN EN VIDEO',
@@ -224,6 +215,7 @@ const contentSections: ContentSection[] = [
         status: 'Se desbloquea al pagar',
         ctaLabel: 'ACCEDER →',
         locked: true,
+        requiredEntitlement: 'masterclass:seductor_legendario',
       },
       {
         label: 'CURSO DIGITAL',
@@ -232,6 +224,7 @@ const contentSections: ContentSection[] = [
         status: 'Se desbloquea al pagar',
         ctaLabel: 'ACCEDER →',
         locked: true,
+        requiredEntitlement: 'masterclass:maestria_convencimiento',
       },
       {
         label: 'NIVEL: CURSO DIGITAL',
@@ -240,23 +233,15 @@ const contentSections: ContentSection[] = [
         status: 'Se desbloquea al pagar',
         ctaLabel: 'ACCEDER',
         locked: true,
+        requiredEntitlement: 'masterclass:pilares_hombre_chingon',
       },
     ],
   },
   {
-    eyebrow: 'Audiolibros',
-    title: 'Narración completa',
-    summary: 'Pistas de audio para escuchar el contenido sin abrir la pantalla de video.',
-    items: [
-      {
-        label: 'AUDIOLIBROS',
-        title: 'Narración completa',
-        description: 'Catálogo de audio con reproducción continua dentro de la app.',
-        status: 'Disponible en la biblioteca',
-        ctaLabel: 'PRÓXIMAMENTE',
-        locked: true,
-      },
-    ],
+    eyebrow: 'Audios',
+    title: 'Audios',
+    summary: 'Todos los audios que se van subiendo a la biblioteca de la app y se desbloquean con la suscripción activa.',
+    items: [],
   },
   {
     eyebrow: 'Libros digitales',
@@ -334,6 +319,27 @@ function truncateWords(text: string, limit: number) {
   }
 
   return `${words.slice(0, limit).join(' ')}...`;
+}
+
+function getAudioSource(audio: UserAudio) {
+  return audio.url || audio.audioUrl || audio.streamUrl || audio.fileUrl || audio.playbackUrl || '';
+}
+
+function formatAudioDuration(durationS?: number | null) {
+  if (!durationS || durationS < 1) {
+    return 'Audio';
+  }
+
+  const minutes = Math.floor(durationS / 60);
+  const seconds = Math.floor(durationS % 60);
+
+  if (minutes < 60) {
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function getHomeDailyTipPreview(notification: AppNotification | null) {
@@ -1491,7 +1497,14 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
 }
 
 function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+  const identity = getIdentity();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
+  const [audios, setAudios] = useState<UserAudio[]>([]);
+  const [selectedAudio, setSelectedAudio] = useState<UserAudio | null>(null);
+  const [audioStatusMessage, setAudioStatusMessage] = useState('');
+  const [isLoadingAudios, setIsLoadingAudios] = useState(true);
+  const [isLoadingSelectedAudio, setIsLoadingSelectedAudio] = useState(false);
+  const hasAudioEntitlement = hasEntitlement(identity, 'udh_audios');
 
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections((current) => {
@@ -1506,6 +1519,70 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
       return next;
     });
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!hasAudioEntitlement) {
+      setAudios([]);
+      setSelectedAudio(null);
+      setAudioStatusMessage('Necesitas la licencia de audio para ver este catálogo.');
+      setIsLoadingAudios(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoadingAudios(true);
+    setAudioStatusMessage('');
+
+    getAudios()
+      .then((nextAudios) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const sortedAudios = [...nextAudios].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title),
+        );
+        setAudios(sortedAudios);
+        setSelectedAudio((current) => current || sortedAudios[0] || null);
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setAudios([]);
+          setSelectedAudio(null);
+          setAudioStatusMessage(
+            error instanceof Error ? error.message : 'No se pudieron cargar los audios.',
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingAudios(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasAudioEntitlement]);
+
+  const selectAudio = async (audio: UserAudio) => {
+    setSelectedAudio(audio);
+
+    try {
+      setIsLoadingSelectedAudio(true);
+      const hydratedAudio = await getAudio(audio.id);
+      setSelectedAudio(hydratedAudio);
+    } catch (error) {
+      setAudioStatusMessage(error instanceof Error ? error.message : 'No se pudo cargar el audio.');
+    } finally {
+      setIsLoadingSelectedAudio(false);
+    }
+  };
+
+  const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
 
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen">
@@ -1537,7 +1614,7 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
                 <span>{section.eyebrow}</span>
                 <h3>{section.title}</h3>
               </div>
-              <p>{section.items.length} piezas</p>
+              <p>{section.title === 'Narración completa' ? audios.length : section.items.length} piezas</p>
             </div>
 
             <p className="content-section-card__summary">{section.summary}</p>
@@ -1553,21 +1630,93 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
 
             {expandedSections.has(section.title) ? (
               <div className="content-item-list">
-                {section.items.map((item) => (
-                  <article key={item.title} className={`content-item ${item.locked ? 'is-locked' : ''}`}>
-                    <div>
-                      <span>{item.label}</span>
-                      <strong>{item.title}</strong>
-                      <p>{item.description}</p>
-                    </div>
-                    <div className="content-item__actions">
-                      <span className="content-status-pill">{item.status}</span>
-                      <button type="button" className="content-item__cta" disabled={item.locked}>
-                        {item.ctaLabel}
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                {section.title === 'Audios' || section.title === 'Narración completa' ? (
+                  <>
+                    {!hasAudioEntitlement ? (
+                      <p className="content-empty-state">
+                        Necesitas la licencia de audio para ver este catálogo.
+                      </p>
+                    ) : (
+                      <>
+                        {selectedAudio ? (
+                          <div className="audio-player-panel">
+                            <div>
+                              <span>{selectedAudio.category || 'Audiolibro'}</span>
+                              <strong>{selectedAudio.title}</strong>
+                              <p>{formatAudioDuration(selectedAudio.durationS)}</p>
+                            </div>
+                            {isLoadingSelectedAudio ? (
+                              <p className="content-empty-state">Preparando audio...</p>
+                            ) : selectedAudioSource ? (
+                              <audio key={selectedAudio.id} controls src={selectedAudioSource} preload="metadata" />
+                            ) : (
+                              <p className="content-empty-state">Este audio no tiene URL de reproducción.</p>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {audios.map((audio) => {
+                          const audioSource = getAudioSource(audio);
+                          const isSelected = selectedAudio?.id === audio.id;
+
+                          return (
+                            <article
+                              key={audio.id}
+                              className={`content-item audio-content-item ${isSelected ? 'is-selected' : ''}`}
+                            >
+                              <div>
+                                <span>{audio.category || 'AUDIOLIBRO'}</span>
+                                <strong>{audio.title}</strong>
+                                <p>{formatAudioDuration(audio.durationS)}</p>
+                              </div>
+                              <div className="content-item__actions">
+                                <span className="content-status-pill">
+                                  {audioSource ? 'Disponible' : 'Sin URL'}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="content-item__cta"
+                                  disabled={!audioSource}
+                                  onClick={() => void selectAudio(audio)}
+                                >
+                                  {isSelected ? 'EN CURSO' : 'ESCUCHAR'}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+
+                        {!isLoadingAudios && audios.length === 0 ? (
+                          <p className="content-empty-state">
+                            {audioStatusMessage || 'Todavía no hay audios publicados.'}
+                          </p>
+                        ) : null}
+                        {isLoadingAudios ? <p className="content-empty-state">Cargando audios...</p> : null}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  section.items.map((item) => {
+                    const isLocked = Boolean(item.locked || (item.requiredEntitlement && !hasEntitlement(identity, item.requiredEntitlement)));
+                    const statusText = isLocked ? 'Requiere acceso' : item.status;
+
+                    return (
+                      <article key={item.title} className={`content-item ${isLocked ? 'is-locked' : ''}`}>
+                        <div>
+                          <span>{item.label}</span>
+                          <strong>{item.title}</strong>
+                          <p>{item.description}</p>
+                        </div>
+                        <div className="content-item__actions">
+                          <span className="content-status-pill">{statusText}</span>
+                          <button type="button" className="content-item__cta" disabled={isLocked}>
+                            {item.ctaLabel}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
               </div>
             ) : null}
           </article>

@@ -399,6 +399,33 @@ textarea {
   font-weight: 800;
 }
 
+.audio-upload-form {
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(220px, 1fr) 180px 180px 120px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.audio-upload-form label,
+.audio-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.audio-upload-form button,
+.audio-editor button {
+  min-height: 42px;
+  border: 1px solid rgba(212, 168, 87, 0.54);
+  background: var(--gold);
+  color: #15100a;
+  padding: 0 16px;
+  font-weight: 800;
+}
+
 .error-banner,
 .success-banner {
   margin: 14px 18px 0;
@@ -502,6 +529,17 @@ td span {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.mono-link {
+  color: #f4d596;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+
+.mono-link:hover {
+  text-decoration: underline;
+}
+
 .table-action {
   min-height: 34px;
   border: 1px solid rgba(212, 168, 87, 0.42);
@@ -578,6 +616,13 @@ td span {
   font-weight: 800;
 }
 
+.audio-editor {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 180px 140px 120px auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .checkbox-field {
   min-height: 42px;
   grid-template-columns: auto 1fr;
@@ -634,7 +679,7 @@ td span {
   }
 
   .sidebar-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .workspace {
@@ -647,6 +692,8 @@ td span {
   .grant-form,
   .notification-form,
   .notification-editor,
+  .audio-upload-form,
+  .audio-editor,
   .subscription-editor,
   .stats-grid {
     grid-template-columns: 1fr;

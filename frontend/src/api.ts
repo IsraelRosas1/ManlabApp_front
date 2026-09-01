@@ -299,6 +299,21 @@ export type UserNotification = {
   createdAt: string;
 };
 
+export type UserAudio = {
+  id: string;
+  title: string;
+  category?: string | null;
+  durationS?: number | null;
+  sortOrder?: number;
+  url?: string | null;
+  audioUrl?: string | null;
+  streamUrl?: string | null;
+  fileUrl?: string | null;
+  playbackUrl?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 export type NotificationPreference = {
   id: string;
   type: string;
@@ -627,6 +642,34 @@ export async function deleteNotificationPreference(id: string) {
   if (!response.ok) {
     throw new Error(await getResponseErrorMessage(response));
   }
+}
+
+export async function getAudios() {
+  const response = await fetch(apiUrl('/api/audios'), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as UserAudio[];
+}
+
+export async function getAudio(audioId: string) {
+  const response = await fetch(apiUrl(`/api/audios/${audioId}`), {
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as UserAudio;
 }
 
 export async function sendBrevoTestEmail() {
