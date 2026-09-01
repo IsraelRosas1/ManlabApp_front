@@ -2227,39 +2227,6 @@ img {
   overflow-wrap: anywhere;
 }
 
-.profile-identity-card {
-  display: grid;
-  gap: 1px;
-  overflow: hidden;
-  border: 1px solid rgba(212, 168, 87, 0.18);
-  border-radius: 12px;
-  background: rgba(212, 168, 87, 0.18);
-}
-
-.profile-identity-card > div {
-  min-width: 0;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.profile-identity-card span {
-  display: block;
-  color: var(--oro);
-  font-size: 0.74rem;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.profile-identity-card strong {
-  display: block;
-  margin-top: 6px;
-  color: var(--crema);
-  font-size: 1rem;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
 .profile-card,
 .locked-row {
   border-radius: 18px;

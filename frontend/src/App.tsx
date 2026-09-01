@@ -3060,17 +3060,6 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         </div>
       </header>
 
-      <div className="profile-identity-card">
-        <div>
-          <span>Nombre</span>
-          <strong>{identity?.name || 'Sin nombre registrado'}</strong>
-        </div>
-        <div>
-          <span>Email</span>
-          <strong>{identity?.email || 'Sin correo registrado'}</strong>
-        </div>
-      </div>
-
       <div className={`profile-card profile-card--accent ${hasPaymentFailure ? 'profile-card--warning' : ''}`}>
         <span className="profile-card__eyebrow">Estado actual</span>
         <strong>
