@@ -165,6 +165,10 @@ img {
   position: relative;
 }
 
+.phone-frame--audio-open .screen {
+  padding-bottom: calc(112px + 166px + env(safe-area-inset-bottom));
+}
+
 .screen {
   min-height: 100svh;
   height: 100svh;

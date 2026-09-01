@@ -696,7 +696,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <div className={`phone-frame phone-frame--${screen}`}>
+      <div className={`phone-frame phone-frame--${screen} ${selectedAudio && selectedAudioSource ? 'phone-frame--audio-open' : ''}`}>
         {screen === 'login' ? (
           <LoginScreen onEnter={() => navigate('home')} onNavigate={navigate} />
         ) : screen === 'home' ? (
