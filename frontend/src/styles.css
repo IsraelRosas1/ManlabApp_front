@@ -1194,20 +1194,24 @@ img {
   border: 1px solid rgba(212, 168, 87, 0.38);
   border-radius: 8px;
   overflow: hidden;
+  background: #11100f;
 }
 
 .segmented-control button {
   min-width: 86px;
   padding: 0 12px;
   color: rgba(245, 240, 232, 0.64);
+  background: #11100f;
   font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .segmented-control button.is-active {
-  background: var(--oro);
-  color: #111111;
+  background: linear-gradient(180deg, rgba(212, 168, 87, 0.28), rgba(212, 168, 87, 0.12));
+  color: var(--oro);
+  box-shadow: inset 0 0 0 1px rgba(212, 168, 87, 0.4);
 }
 
 .notifications-mark-button {
@@ -2706,6 +2710,9 @@ img {
     position: sticky;
     top: 0;
     z-index: 18;
+    background: rgba(12, 12, 12, 0.96);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(212, 168, 87, 0.2);
   }
 
   .reto-dashboard > .screen-header,
@@ -2715,9 +2722,41 @@ img {
     margin-top: 0;
   }
 
+  .screen--notifications {
+    position: relative;
+  }
+
+  .screen--notifications .screen-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: -20px -20px 0;
+    padding: 16px 20px 12px;
+    background: #0c0c0c;
+    border-bottom: 1px solid rgba(212, 168, 87, 0.2);
+    box-shadow: 0 1px 0 rgba(212, 168, 87, 0.12);
+  }
+
   .screen--notifications .notifications-toolbar {
-    top: 88px;
-    z-index: 17;
+    position: sticky;
+    top: 86px;
+    z-index: 29;
+    margin: 0 -20px 0;
+    padding: 12px 20px 10px;
+    background: #0c0c0c;
+    border-bottom: 1px solid rgba(212, 168, 87, 0.2);
+    backdrop-filter: none;
+    box-shadow: 0 1px 0 rgba(212, 168, 87, 0.12);
+  }
+
+  .screen--notifications .segmented-control {
+    background: #0c0c0c;
+    border: 1px solid rgba(212, 168, 87, 0.38);
+  }
+
+  .screen--notifications .segmented-control button {
+    background: #0c0c0c;
+    color: rgba(245, 240, 232, 0.7);
   }
 
   .reto-info-box--sticky {
