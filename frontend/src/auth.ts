@@ -126,7 +126,7 @@ export function hasEntitlement(identity: IdentityMe | null | undefined, entitlem
   const planCode = identity?.planCode?.trim().toLowerCase();
 
   if (normalizedClaim === 'udh_audios') {
-    return planCode === 'app_mensual' || planCode === 'mensual' || planCode === 'app_annual' || planCode === 'anual';
+    return planCode === 'app_mensual' || planCode === 'mensual' || planCode === 'app_annual' || planCode == 'app_fundador' || planCode === 'anual';
   }
 
   return false;

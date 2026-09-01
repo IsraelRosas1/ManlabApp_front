@@ -571,6 +571,69 @@ function useScreen() {
 export default function App() {
   const { screen, navigate } = useScreen();
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+  const [selectedAudio, setSelectedAudio] = useState<UserAudio | null>(null);
+  const [isLoadingSelectedAudio, setIsLoadingSelectedAudio] = useState(false);
+  const [audioStatusMessage, setAudioStatusMessage] = useState('');
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
+
+  const skipAudio = (seconds: number) => {
+    const element = audioRef.current;
+    if (!element) {
+      return;
+    }
+
+    const nextTime = Math.max(0, element.currentTime + seconds);
+    element.currentTime = nextTime;
+  };
+
+  const toggleAudioPlayback = async () => {
+    const element = audioRef.current;
+    if (!element) {
+      return;
+    }
+
+    if (element.paused) {
+      try {
+        await element.play();
+      } catch {
+        setAudioStatusMessage('No se pudo reproducir el audio en este momento.');
+      }
+      return;
+    }
+
+    element.pause();
+  };
+
+  const closeAudioPlayer = () => {
+    const element = audioRef.current;
+
+    if (element) {
+      element.pause();
+      element.currentTime = 0;
+    }
+
+    setSelectedAudio(null);
+    setIsAudioPlaying(false);
+    setAudioStatusMessage('');
+  };
+
+  const selectAudio = async (audio: UserAudio) => {
+    setSelectedAudio(audio);
+    setAudioStatusMessage('');
+
+    try {
+      setIsLoadingSelectedAudio(true);
+      const hydratedAudio = await getAudio(audio.id);
+      setSelectedAudio(hydratedAudio);
+    } catch (error) {
+      setAudioStatusMessage(error instanceof Error ? error.message : 'No se pudo cargar el audio.');
+    } finally {
+      setIsLoadingSelectedAudio(false);
+    }
+  };
 
   useEffect(() => {
     if (screen === 'login' || !isAuthenticated()) {
@@ -639,7 +702,15 @@ export default function App() {
         ) : screen === 'home' ? (
           <HomeScreen onNavigate={navigate} />
         ) : screen === 'contenido' ? (
-          <ContenidoScreen onNavigate={navigate} />
+          <ContenidoScreen
+            onNavigate={navigate}
+            selectedAudio={selectedAudio}
+            setSelectedAudio={setSelectedAudio}
+            audioStatusMessage={audioStatusMessage}
+            setAudioStatusMessage={setAudioStatusMessage}
+            isLoadingSelectedAudio={isLoadingSelectedAudio}
+            onSelectAudio={selectAudio}
+          />
         ) : screen === 'reto' ? (
           <RetoScreen onNavigate={navigate} />
         ) : screen === 'notifications' ? (
@@ -652,6 +723,51 @@ export default function App() {
           <VeredictoScreen onBack={() => navigate('reto')} />
         )}
       </div>
+
+      {selectedAudio && selectedAudioSource ? (
+        <div className="persistent-audio-player" aria-live="polite">
+          <button
+            type="button"
+            className="persistent-audio-player__close"
+            aria-label="Cerrar audio"
+            onClick={closeAudioPlayer}
+          >
+            ×
+          </button>
+
+          <div className="persistent-audio-player__meta">
+            <span>{selectedAudio.category || 'AUDIOLIBRO'}</span>
+            <strong>{selectedAudio.title}</strong>
+          </div>
+
+          <div className="persistent-audio-player__controls">
+            <button type="button" className="persistent-audio-player__button" onClick={() => skipAudio(-10)}>
+              -10s
+            </button>
+            <button type="button" className="persistent-audio-player__button is-primary" onClick={() => void toggleAudioPlayback()}>
+              {isAudioPlaying ? 'Pausa' : 'Play'}
+            </button>
+            <button type="button" className="persistent-audio-player__button" onClick={() => skipAudio(10)}>
+              +10s
+            </button>
+          </div>
+
+          <audio
+            ref={audioRef}
+            key={selectedAudio.id}
+            controls
+            src={selectedAudioSource}
+            preload="metadata"
+            onPlay={() => setIsAudioPlaying(true)}
+            onPause={() => setIsAudioPlaying(false)}
+            onEnded={() => setIsAudioPlaying(false)}
+          />
+
+          {isLoadingSelectedAudio ? <small>Preparando audio...</small> : null}
+          {audioStatusMessage ? <small>{audioStatusMessage}</small> : null}
+        </div>
+      ) : null}
+
       {isSubscriptionExpired ? <SubscriptionExpiredModal onReturnToLogin={() => setIsSubscriptionExpired(false)} /> : null}
     </div>
   );
@@ -1496,14 +1612,27 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
   );
 }
 
-function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
+function ContenidoScreen({
+  onNavigate,
+  selectedAudio,
+  setSelectedAudio,
+  audioStatusMessage,
+  setAudioStatusMessage,
+  isLoadingSelectedAudio,
+  onSelectAudio,
+}: {
+  onNavigate: (screen: ScreenKey) => void;
+  selectedAudio: UserAudio | null;
+  setSelectedAudio: React.Dispatch<React.SetStateAction<UserAudio | null>>;
+  audioStatusMessage: string;
+  setAudioStatusMessage: React.Dispatch<React.SetStateAction<string>>;
+  isLoadingSelectedAudio: boolean;
+  onSelectAudio: (audio: UserAudio) => Promise<void>;
+}) {
   const identity = getIdentity();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
   const [audios, setAudios] = useState<UserAudio[]>([]);
-  const [selectedAudio, setSelectedAudio] = useState<UserAudio | null>(null);
-  const [audioStatusMessage, setAudioStatusMessage] = useState('');
   const [isLoadingAudios, setIsLoadingAudios] = useState(true);
-  const [isLoadingSelectedAudio, setIsLoadingSelectedAudio] = useState(false);
   const hasAudioEntitlement = hasEntitlement(identity, 'udh_audios');
 
   const toggleSection = (sectionTitle: string) => {
@@ -1546,7 +1675,7 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
           (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title),
         );
         setAudios(sortedAudios);
-        setSelectedAudio((current) => current || sortedAudios[0] || null);
+        setSelectedAudio((current) => current ?? null);
       })
       .catch((error) => {
         if (isMounted) {
@@ -1567,20 +1696,6 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
       isMounted = false;
     };
   }, [hasAudioEntitlement]);
-
-  const selectAudio = async (audio: UserAudio) => {
-    setSelectedAudio(audio);
-
-    try {
-      setIsLoadingSelectedAudio(true);
-      const hydratedAudio = await getAudio(audio.id);
-      setSelectedAudio(hydratedAudio);
-    } catch (error) {
-      setAudioStatusMessage(error instanceof Error ? error.message : 'No se pudo cargar el audio.');
-    } finally {
-      setIsLoadingSelectedAudio(false);
-    }
-  };
 
   const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
 
@@ -1648,7 +1763,7 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
                             {isLoadingSelectedAudio ? (
                               <p className="content-empty-state">Preparando audio...</p>
                             ) : selectedAudioSource ? (
-                              <audio key={selectedAudio.id} controls src={selectedAudioSource} preload="metadata" />
+                              <p className="content-empty-state">Reproducción activa en la barra de audio.</p>
                             ) : (
                               <p className="content-empty-state">Este audio no tiene URL de reproducción.</p>
                             )}
@@ -1677,7 +1792,7 @@ function ContenidoScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => vo
                                   type="button"
                                   className="content-item__cta"
                                   disabled={!audioSource}
-                                  onClick={() => void selectAudio(audio)}
+                                  onClick={() => void onSelectAudio(audio)}
                                 >
                                   {isSelected ? 'EN CURSO' : 'ESCUCHAR'}
                                 </button>
