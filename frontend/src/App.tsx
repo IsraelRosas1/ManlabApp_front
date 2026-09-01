@@ -840,11 +840,12 @@ function LoginScreen({
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/identity/login?useCookies=true`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           email,
           password,
@@ -2967,11 +2968,12 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       throw new Error('No se pudo validar la cuenta actual.');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/identity/login?useCookies=true`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({
         email: identity.email,
         password,

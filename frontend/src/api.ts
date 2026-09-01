@@ -83,6 +83,7 @@ async function getResponseErrorMessage(response: Response) {
 
 export async function getIdentityMe(loginResponse: LoginResponse) {
   const response = await fetch(apiUrl('/api/identity/me'), {
+    credentials: 'include',
     headers: {
       Authorization: `${loginResponse.tokenType} ${loginResponse.accessToken}`,
     },
@@ -97,6 +98,7 @@ export async function getIdentityMe(loginResponse: LoginResponse) {
 
 export async function getCurrentIdentityMe() {
   const response = await fetch(apiUrl('/api/identity/me'), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -137,6 +139,7 @@ export type CheckoutSessionResponse = {
 export async function claimRegisterUser(token: string, name: string, password: string) {
   const response = await fetch(apiUrl('/api/identity/claim-register'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -158,6 +161,7 @@ export async function claimRegisterUser(token: string, name: string, password: s
 export async function resendClaimLink(email: string) {
   const response = await fetch(apiUrl('/api/identity/resend-claim-link'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -177,6 +181,7 @@ export async function resendClaimLink(email: string) {
 export async function createBillingPortalSession(returnUrl: string) {
   const response = await fetch(apiUrl('/api/me/billing-portal'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
       'Content-Type': 'application/json',
@@ -199,6 +204,7 @@ export async function createBillingPortalSession(returnUrl: string) {
 export async function createSubscriptionCheckoutSession(planCode: string, email: string) {
   const response = await fetch(apiUrl('/api/checkout/suscripcion'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
       'Content-Type': 'application/json',
@@ -222,6 +228,7 @@ export async function createSubscriptionCheckoutSession(planCode: string, email:
 export async function upgradeSubscription(planCode: string) {
   const response = await fetch(apiUrl('/api/me/upgrade'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
       'Content-Type': 'application/json',
@@ -403,6 +410,7 @@ async function readDailyLogResponse(response: Response, logDate: string) {
 
 export async function getRetoDailyLog(logDate = getTodayLogDate()) {
   const response = await fetch(dailyLogUrl(logDate), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -421,6 +429,7 @@ export async function getRetoDailyLog(logDate = getTodayLogDate()) {
 
 export async function getRetoLogsFromTo(from: string, to: string) {
   const response = await fetch(`${dailyLogsUrl()}/from/${from}/to/${to}`, {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -436,6 +445,7 @@ export async function getRetoLogsFromTo(from: string, to: string) {
 export async function createRetoDailyLog(data: RetoDailyLogCreate) {
   const response = await fetch(dailyLogsUrl(), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
@@ -453,6 +463,7 @@ export async function createRetoDailyLog(data: RetoDailyLogCreate) {
 export async function updateRetoDailyLog(data: RetoDailyLogPatch, logDate = getTodayLogDate()) {
   const response = await fetch(dailyLogUrl(logDate), {
     method: 'PATCH',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
@@ -469,6 +480,7 @@ export async function updateRetoDailyLog(data: RetoDailyLogPatch, logDate = getT
 
 export async function getWeakLinks() {
   const response = await fetch(weakLinksUrl(), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -483,6 +495,7 @@ export async function getWeakLinks() {
 
 export async function getRetoStreak() {
   const response = await fetch(streakUrl(), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -497,6 +510,7 @@ export async function getRetoStreak() {
 
 export async function getLatestAppNotifications(limit = 5) {
   const response = await fetch(apiUrl('/api/admin/notifications'), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -518,6 +532,7 @@ export async function getLatestAppNotifications(limit = 5) {
 export async function getMyNotifications(isSeen?: boolean) {
   const query = isSeen === undefined ? '' : `?isSeen=${isSeen}`;
   const response = await fetch(apiUrl(`/api/notifications${query}`), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -532,6 +547,7 @@ export async function getMyNotifications(isSeen?: boolean) {
 
 export async function getUnseenNotificationCount() {
   const response = await fetch(apiUrl('/api/notifications/unseen-count'), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -547,6 +563,7 @@ export async function getUnseenNotificationCount() {
 export async function markNotificationSeen(deliveryId: string) {
   const response = await fetch(apiUrl(`/api/notifications/${deliveryId}/seen`), {
     method: 'PATCH',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -560,6 +577,7 @@ export async function markNotificationSeen(deliveryId: string) {
 export async function deleteUserNotification(deliveryId: string) {
   const response = await fetch(apiUrl(`/api/notifications/${deliveryId}`), {
     method: 'DELETE',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -573,6 +591,7 @@ export async function deleteUserNotification(deliveryId: string) {
 export async function markAllNotificationsSeen() {
   const response = await fetch(apiUrl('/api/notifications/seen'), {
     method: 'PATCH',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -587,6 +606,7 @@ export async function markAllNotificationsSeen() {
 
 export async function getNotificationPreferences() {
   const response = await fetch(apiUrl('/api/notification-preferences'), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -602,6 +622,7 @@ export async function getNotificationPreferences() {
 export async function createNotificationPreference(data: NotificationPreferenceCreate) {
   const response = await fetch(apiUrl('/api/notification-preferences'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
@@ -619,6 +640,7 @@ export async function createNotificationPreference(data: NotificationPreferenceC
 export async function updateNotificationPreference(id: string, data: NotificationPreferencePatch) {
   const response = await fetch(apiUrl(`/api/notification-preferences/${id}`), {
     method: 'PATCH',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
@@ -634,6 +656,7 @@ export async function updateNotificationPreference(id: string, data: Notificatio
 export async function deleteNotificationPreference(id: string) {
   const response = await fetch(apiUrl(`/api/notification-preferences/${id}`), {
     method: 'DELETE',
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -646,6 +669,7 @@ export async function deleteNotificationPreference(id: string) {
 
 export async function getAudios() {
   const response = await fetch(apiUrl('/api/audios'), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -660,6 +684,7 @@ export async function getAudios() {
 
 export async function getAudio(audioId: string) {
   const response = await fetch(apiUrl(`/api/audios/${audioId}`), {
+    credentials: 'include',
     headers: {
       ...getAuthHeader(),
     },
@@ -675,6 +700,7 @@ export async function getAudio(audioId: string) {
 export async function sendBrevoTestEmail() {
   const response = await fetch(apiUrl('/api/email/test'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
@@ -765,6 +791,7 @@ async function saveOneSignalPushSettings({
 }) {
   const response = await fetch(apiUrl('/api/identity/onesignal'), {
     method: 'PATCH',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
