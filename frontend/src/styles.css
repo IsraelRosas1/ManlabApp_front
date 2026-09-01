@@ -2409,29 +2409,26 @@ img {
 }
 
 .profile-legal-list--featured {
-  border-color: rgba(212, 168, 87, 0.26);
-  background: rgba(212, 168, 87, 0.1);
+  border-color: rgba(255, 255, 255, 0.06);
+  background: transparent;
 }
 
 .profile-legal-list button {
   min-height: 46px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
+  justify-content: center;
+  padding: 0 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(245, 240, 232, 0.78);
   font-weight: 800;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
+  transition: color 0.2s ease, opacity 0.2s ease;
 }
 
 .profile-legal-list button::after {
-  content: 'Abrir';
-  color: var(--oro);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  display: none;
 }
 
 .profile-legal-list button:last-child {
@@ -2440,6 +2437,49 @@ img {
 
 .profile-legal-list button:hover {
   color: var(--oro);
+}
+
+@media (min-width: 860px) {
+  .profile-legal-list {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .profile-legal-list--featured {
+    border: 0;
+    background: transparent;
+  }
+
+  .profile-legal-list button {
+    min-height: unset;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 18px;
+    color: rgba(245, 240, 232, 0.72);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .profile-legal-list button + button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 1px;
+    height: 16px;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.18);
+  }
 }
 
 .profile-legal-modal {
