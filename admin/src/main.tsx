@@ -560,6 +560,24 @@ function App() {
     }));
   };
 
+  const handleAudioFileSelection = (file: File | null) => {
+    setAudioFile(file);
+
+    if (!file) {
+      return;
+    }
+
+    const inferredTitle = file.name.replace(/\.[^/.]+$/, '').trim();
+    if (!inferredTitle) {
+      return;
+    }
+
+    setAudioForm((current) => ({
+      ...current,
+      title: current.title.trim() ? current.title : inferredTitle,
+    }));
+  };
+
   const handleSendNotification = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -840,7 +858,10 @@ function App() {
     (total, notification) => total + notification.openedDeliveries,
     0,
   );
-  const audioCategories = new Set(audios.map((audio) => audio.category?.trim()).filter(Boolean)).size;
+  const audioCategoryOptions = Array.from(
+    new Set(audios.map((audio) => audio.category?.trim()).filter(Boolean) as string[]),
+  );
+  const audioCategories = audioCategoryOptions.length;
   const totalAudioSeconds = audios.reduce((total, audio) => total + (audio.durationS || 0), 0);
   const filteredNotifications = notifications.filter((notification) => {
     const normalizedSearch = notificationHistorySearch.trim().toLowerCase();
@@ -1335,7 +1356,7 @@ function App() {
                   <input
                     type="file"
                     accept="audio/*"
-                    onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                    onChange={(event) => handleAudioFileSelection(event.target.files?.[0] || null)}
                     required
                   />
                 </label>
@@ -1351,10 +1372,16 @@ function App() {
                 <label>
                   Categoría
                   <input
+                    list="audio-category-options"
                     value={audioForm.category}
                     onChange={(event) => updateAudioForm('category', event.target.value)}
                     placeholder="Audiolibro, clase..."
                   />
+                  <datalist id="audio-category-options">
+                    {audioCategoryOptions.map((category) => (
+                      <option key={category} value={category} />
+                    ))}
+                  </datalist>
                 </label>
                 <label>
                   Duración en segundos
