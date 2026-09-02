@@ -47,11 +47,18 @@ export function readAuthSession(): AuthSession | null {
   }
 }
 
-export function saveAuthSession(loginResponse: LoginResponse, identity?: IdentityMe) {
+export function saveAuthSession(loginResponse?: Partial<LoginResponse> | null, identity?: IdentityMe) {
+  const expiresInSeconds =
+    typeof loginResponse?.expiresIn === 'number' && loginResponse.expiresIn > 0
+      ? loginResponse.expiresIn
+      : 30 * 24 * 60 * 60;
+
   const session: AuthSession = {
-    ...loginResponse,
+    tokenType: loginResponse?.tokenType ?? '',
+    accessToken: loginResponse?.accessToken ?? '',
+    expiresIn: expiresInSeconds,
     identity,
-    expiresAt: Date.now() + loginResponse.expiresIn * 1000,
+    expiresAt: Date.now() + expiresInSeconds * 1000,
   };
 
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
@@ -135,13 +142,13 @@ export function hasEntitlement(identity: IdentityMe | null | undefined, entitlem
 export function isAuthenticated() {
   const session = readAuthSession();
 
-  if (!session?.accessToken || session.expiresAt <= Date.now()) {
+  if (!session || !session.identity || session.expiresAt <= Date.now()) {
     clearAuthSession();
     return false;
   }
 
   const identity = session.identity;
-  if (!identity || (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity))) {
+  if (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity)) {
     clearAuthSession();
     return false;
   }

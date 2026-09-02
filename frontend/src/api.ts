@@ -81,12 +81,16 @@ async function getResponseErrorMessage(response: Response) {
   return message;
 }
 
-export async function getIdentityMe(loginResponse: LoginResponse) {
+export async function getIdentityMe(loginResponse?: Partial<LoginResponse> | null) {
+  const headers: Record<string, string> = {};
+
+  if (loginResponse?.tokenType && loginResponse?.accessToken) {
+    headers.Authorization = `${loginResponse.tokenType} ${loginResponse.accessToken}`;
+  }
+
   const response = await fetch(apiUrl('/api/identity/me'), {
     credentials: 'include',
-    headers: {
-      Authorization: `${loginResponse.tokenType} ${loginResponse.accessToken}`,
-    },
+    headers,
   });
 
   if (!response.ok) {

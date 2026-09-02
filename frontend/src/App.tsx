@@ -56,11 +56,29 @@ import {
   updateAuthIdentity,
 } from './auth';
 
-type ScreenKey = 'login' | 'home' | 'contenido' | 'reto' | 'notifications' | 'clon' | 'perfil' | 'veredicto';
+type ScreenKey =
+  | 'login'
+  | 'home'
+  | 'contenido'
+  | 'audios'
+  | 'reto'
+  | 'notifications'
+  | 'clon'
+  | 'perfil'
+  | 'veredicto';
 
-type BottomNavKey = Exclude<ScreenKey, 'login' | 'veredicto'>;
+type BottomNavKey = Exclude<ScreenKey, 'login' | 'audios' | 'veredicto'>;
 
-const protectedScreens: ScreenKey[] = ['home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'];
+const protectedScreens: ScreenKey[] = [
+  'home',
+  'contenido',
+  'audios',
+  'reto',
+  'notifications',
+  'clon',
+  'perfil',
+  'veredicto',
+];
 const SUBSCRIPTION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const HOME_NOTIFICATION_PREVIEW_WORDS = 10;
 const NOTIFICATIONS_UPDATED_EVENT = 'manlab:notifications-updated';
@@ -486,7 +504,7 @@ function getInitialScreen(): ScreenKey {
   const hashValue = window.location.hash.replace('#', '');
   const hashRoute = hashValue.split('?')[0] as ScreenKey;
 
-  if (['login', 'home', 'contenido', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
+  if (['login', 'home', 'contenido', 'audios', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
     const identity = getIdentity();
 
     if (hasCanceledSubscription(identity) && hashRoute !== 'perfil') {
@@ -539,6 +557,7 @@ function useScreen() {
       login: 'ManLab · Acceso',
       home: 'ManLab · Home',
       contenido: 'ManLab · Contenido',
+      audios: 'ManLab · Audios',
       reto: 'ManLab · Reto',
       notifications: 'ManLab · Avisos',
       clon: 'ManLab · Clon',
@@ -704,6 +723,10 @@ export default function App() {
         ) : screen === 'contenido' ? (
           <ContenidoScreen
             onNavigate={navigate}
+          />
+        ) : screen === 'audios' ? (
+          <AudioLibraryScreen
+            onNavigate={navigate}
             selectedAudio={selectedAudio}
             setSelectedAudio={setSelectedAudio}
             audioStatusMessage={audioStatusMessage}
@@ -840,7 +863,7 @@ function LoginScreen({
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/identity/login?useCookies=true`, {
+      const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -857,7 +880,17 @@ function LoginScreen({
         throw new Error(getLoginErrorMessage(response, message));
       }
 
-      const loginResponse = (await response.json()) as LoginResponse;
+      const responseText = await response.text();
+      let loginResponse: LoginResponse | null = null;
+
+      if (responseText) {
+        try {
+          loginResponse = JSON.parse(responseText) as LoginResponse;
+        } catch {
+          loginResponse = null;
+        }
+      }
+
       const identity = await getIdentityMe(loginResponse);
 
       if (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity)) {
@@ -1615,40 +1648,108 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
 
 function ContenidoScreen({
   onNavigate,
-  selectedAudio,
-  setSelectedAudio,
-  audioStatusMessage,
-  setAudioStatusMessage,
-  isLoadingSelectedAudio,
-  onSelectAudio,
 }: {
   onNavigate: (screen: ScreenKey) => void;
-  selectedAudio: UserAudio | null;
-  setSelectedAudio: React.Dispatch<React.SetStateAction<UserAudio | null>>;
-  audioStatusMessage: string;
-  setAudioStatusMessage: React.Dispatch<React.SetStateAction<string>>;
-  isLoadingSelectedAudio: boolean;
-  onSelectAudio: (audio: UserAudio) => Promise<void>;
 }) {
   const identity = getIdentity();
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set());
+  const videoItems = contentSections[0]?.items ?? [];
+  const ebookItem = contentSections[2]?.items[0];
+
+  return (
+    <section className="screen screen--stacked screen--tight-bottom content-screen content-library-screen">
+      <div className="content-page-heading">
+        <button type="button" className="back-button" onClick={() => onNavigate('home')} aria-label="Volver al home">
+          <ArrowLeftIcon />
+          <span>CONTENIDO</span>
+        </button>
+
+        <div className="content-title-row">
+          <div>
+            <h2>BIBLIOTECA MANLAB</h2>
+            <p>Audios, cursos, audiolibros y ebooks</p>
+          </div>
+        </div>
+      </div>
+
+      <section className="library-block library-block--video" aria-labelledby="video-library-title">
+        <div className="library-block__header">
+          <h3 id="video-library-title">FORMACIÓN EN VIDEO</h3>
+          <span>{videoItems.length} piezas</span>
+        </div>
+
+        <div className="video-shelf" aria-label="Formación en video">
+          {videoItems.map((item, index) => {
+            const isLocked = Boolean(item.locked || (item.requiredEntitlement && !hasEntitlement(identity, item.requiredEntitlement)));
+
+            return (
+              <article key={item.title} className={`video-shelf-card ${isLocked ? 'is-locked' : ''}`}>
+                <span className="video-shelf-card__badge">
+                  {index === 0 ? '$29' : isLocked ? 'BLOQUEADO' : 'INCLUIDO'}
+                </span>
+                <div className="video-shelf-card__icon" aria-hidden="true">
+                  {isLocked && index > 1 ? <LockIcon /> : <PlayIcon />}
+                </div>
+                <strong>{item.title}</strong>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="library-block library-block--audios" aria-labelledby="audio-library-title">
+        <button type="button" className="library-block__header library-block__header--button" onClick={() => onNavigate('audios')}>
+          <h3 id="audio-library-title">AUDIOS UNIVERSIDAD DEL HOMBRE</h3>
+          <span>Audios</span>
+        </button>
+
+        <button type="button" className="audio-library-preview" onClick={() => onNavigate('audios')}>
+          <span className="audio-library-preview__icon" aria-hidden="true">
+            <HeadphonesIcon />
+          </span>
+          <span>La biblioteca de audios de la Universidad del Hombre.</span>
+        </button>
+      </section>
+
+      <section className="library-block" aria-labelledby="ebook-library-title">
+        <div className="library-block__header">
+          <h3 id="ebook-library-title">EBOOKS TÉCNICOS</h3>
+          <span>1 pieza</span>
+        </div>
+
+        <article className="ebook-library-card">
+          <span className="ebook-library-card__cover" aria-hidden="true">
+            <BookIcon />
+          </span>
+          <div>
+            <strong>El Manual del Hierro</strong>
+            <p>Manual técnico · PDF</p>
+          </div>
+          <span className="ebook-library-card__badge">{ebookItem?.locked ? 'INCLUIDO' : 'DISPONIBLE'}</span>
+        </article>
+      </section>
+
+      <p className="content-footer-note">
+        El acceso completo depende de tu plan activo y de las compras que habilites dentro de la app.
+      </p>
+
+      <BottomNav current="contenido" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
+function useAudioLibrary({
+  selectedAudio,
+  setSelectedAudio,
+  setAudioStatusMessage,
+}: {
+  selectedAudio: UserAudio | null;
+  setSelectedAudio: React.Dispatch<React.SetStateAction<UserAudio | null>>;
+  setAudioStatusMessage: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  const identity = getIdentity();
   const [audios, setAudios] = useState<UserAudio[]>([]);
   const [isLoadingAudios, setIsLoadingAudios] = useState(true);
   const hasAudioEntitlement = hasEntitlement(identity, 'udh_audios');
-
-  const toggleSection = (sectionTitle: string) => {
-    setExpandedSections((current) => {
-      const next = new Set(current);
-
-      if (next.has(sectionTitle)) {
-        next.delete(sectionTitle);
-      } else {
-        next.add(sectionTitle);
-      }
-
-      return next;
-    });
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -1676,7 +1777,7 @@ function ContenidoScreen({
           (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title),
         );
         setAudios(sortedAudios);
-        setSelectedAudio((current) => current ?? null);
+        setSelectedAudio((current) => current ?? selectedAudio);
       })
       .catch((error) => {
         if (isMounted) {
@@ -1698,150 +1799,117 @@ function ContenidoScreen({
     };
   }, [hasAudioEntitlement]);
 
+  return { audios, hasAudioEntitlement, isLoadingAudios };
+}
+
+function AudioLibraryScreen({
+  onNavigate,
+  selectedAudio,
+  setSelectedAudio,
+  audioStatusMessage,
+  setAudioStatusMessage,
+  isLoadingSelectedAudio,
+  onSelectAudio,
+}: {
+  onNavigate: (screen: ScreenKey) => void;
+  selectedAudio: UserAudio | null;
+  setSelectedAudio: React.Dispatch<React.SetStateAction<UserAudio | null>>;
+  audioStatusMessage: string;
+  setAudioStatusMessage: React.Dispatch<React.SetStateAction<string>>;
+  isLoadingSelectedAudio: boolean;
+  onSelectAudio: (audio: UserAudio) => Promise<void>;
+}) {
+  const { audios, hasAudioEntitlement, isLoadingAudios } = useAudioLibrary({
+    selectedAudio,
+    setSelectedAudio,
+    setAudioStatusMessage,
+  });
   const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
 
   return (
-    <section className="screen screen--stacked screen--tight-bottom content-screen">
-      <div className="content-topbar">
-        <button type="button" className="back-button" onClick={() => onNavigate('home')} aria-label="Volver al home">
+    <section className="screen screen--stacked screen--tight-bottom content-screen audio-library-screen">
+      <div className="content-page-heading">
+        <button type="button" className="back-button" onClick={() => onNavigate('contenido')} aria-label="Volver a contenido">
           <ArrowLeftIcon />
           <span>CONTENIDO</span>
         </button>
 
-        <div className="content-topbar__copy">
-          <p className="section-kicker">BIBLIOTECA MANLAB</p>
-          <span>Videos, cursos, audiolibros y ebooks</span>
+        <div className="audio-library-heading">
+          <div>
+            <h2>AUDIOS</h2>
+            <p>
+              Todos los audios que se van subiendo a la biblioteca de la app y se desbloquean con la suscripción
+              activa.
+            </p>
+          </div>
+          <span>{audios.length || 4} piezas</span>
         </div>
       </div>
 
-      <header className="content-hero">
-        <h2>CONTENIDO</h2>
-        <p>
-          Aquí se concentra toda la biblioteca: videos, cursos digitales, audiolibros y libros técnicos.
-          Parte del catálogo se libera con la suscripción y otra parte se desbloquea por compra individual.
-        </p>
-      </header>
-
-      <div className="content-sections">
-        {contentSections.map((section) => (
-          <article key={section.title} className="content-section-card">
-            <div className="content-section-card__header">
-              <div>
-                <span>{section.eyebrow}</span>
-                <h3>{section.title}</h3>
-              </div>
-              <p>{section.title === 'Narración completa' ? audios.length : section.items.length} piezas</p>
-            </div>
-
-            <p className="content-section-card__summary">{section.summary}</p>
-
-            <button
-              type="button"
-              className="content-section-card__toggle"
-              onClick={() => toggleSection(section.title)}
-              aria-expanded={expandedSections.has(section.title)}
-            >
-              {expandedSections.has(section.title) ? 'VER MENOS' : 'VER CONTENIDO'}
-            </button>
-
-            {expandedSections.has(section.title) ? (
-              <div className="content-item-list">
-                {section.title === 'Audios' || section.title === 'Narración completa' ? (
-                  <>
-                    {!hasAudioEntitlement ? (
-                      <p className="content-empty-state">
-                        Necesitas la licencia de audio para ver este catálogo.
-                      </p>
-                    ) : (
-                      <>
-                        {selectedAudio ? (
-                          <div className="audio-player-panel">
-                            <div>
-                              <span>{selectedAudio.category || 'Audiolibro'}</span>
-                              <strong>{selectedAudio.title}</strong>
-                              <p>{formatAudioDuration(selectedAudio.durationS)}</p>
-                            </div>
-                            {isLoadingSelectedAudio ? (
-                              <p className="content-empty-state">Preparando audio...</p>
-                            ) : selectedAudioSource ? (
-                              <p className="content-empty-state">Reproducción activa en la barra de audio.</p>
-                            ) : (
-                              <p className="content-empty-state">Este audio no tiene URL de reproducción.</p>
-                            )}
-                          </div>
-                        ) : null}
-
-                        {audios.map((audio) => {
-                          const audioSource = getAudioSource(audio);
-                          const isSelected = selectedAudio?.id === audio.id;
-
-                          return (
-                            <article
-                              key={audio.id}
-                              className={`content-item audio-content-item ${isSelected ? 'is-selected' : ''}`}
-                            >
-                              <div>
-                                <span>{audio.category || 'AUDIOLIBRO'}</span>
-                                <strong>{audio.title}</strong>
-                                <p>{formatAudioDuration(audio.durationS)}</p>
-                              </div>
-                              <div className="content-item__actions">
-                                <span className="content-status-pill">
-                                  {audioSource ? 'Disponible' : 'Sin URL'}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="content-item__cta"
-                                  disabled={!audioSource}
-                                  onClick={() => void onSelectAudio(audio)}
-                                >
-                                  {isSelected ? 'EN CURSO' : 'ESCUCHAR'}
-                                </button>
-                              </div>
-                            </article>
-                          );
-                        })}
-
-                        {!isLoadingAudios && audios.length === 0 ? (
-                          <p className="content-empty-state">
-                            {audioStatusMessage || 'Todavía no hay audios publicados.'}
-                          </p>
-                        ) : null}
-                        {isLoadingAudios ? <p className="content-empty-state">Cargando audios...</p> : null}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  section.items.map((item) => {
-                    const isLocked = Boolean(item.locked || (item.requiredEntitlement && !hasEntitlement(identity, item.requiredEntitlement)));
-                    const statusText = isLocked ? 'Requiere acceso' : item.status;
-
-                    return (
-                      <article key={item.title} className={`content-item ${isLocked ? 'is-locked' : ''}`}>
-                        <div>
-                          <span>{item.label}</span>
-                          <strong>{item.title}</strong>
-                          <p>{item.description}</p>
-                        </div>
-                        <div className="content-item__actions">
-                          <span className="content-status-pill">{statusText}</span>
-                          <button type="button" className="content-item__cta" disabled={isLocked}>
-                            {item.ctaLabel}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
-            ) : null}
-          </article>
-        ))}
+      <div className="audio-category-heading">
+        <span />
+        <h3>CÍRCULO SOCIAL</h3>
       </div>
 
-      <p className="content-footer-note">
-        El acceso completo dependerá de tu plan activo y de las compras que se habiliten dentro de la app.
-      </p>
+      <div className="audio-track-list">
+        {!hasAudioEntitlement ? (
+          <p className="content-empty-state audio-library-message">
+            Necesitas la licencia de audio para ver este catálogo.
+          </p>
+        ) : null}
+
+        {hasAudioEntitlement && selectedAudio ? (
+          <div className="audio-player-panel">
+            <div>
+              <span>{selectedAudio.category || 'Audiolibro'}</span>
+              <strong>{selectedAudio.title}</strong>
+              <p>{formatAudioDuration(selectedAudio.durationS)}</p>
+            </div>
+            {isLoadingSelectedAudio ? (
+              <p className="content-empty-state">Preparando audio...</p>
+            ) : selectedAudioSource ? (
+              <p className="content-empty-state">Reproducción activa en la barra de audio.</p>
+            ) : (
+              <p className="content-empty-state">Este audio no tiene URL de reproducción.</p>
+            )}
+          </div>
+        ) : null}
+
+        {hasAudioEntitlement
+          ? audios.map((audio) => {
+              const audioSource = getAudioSource(audio);
+              const isSelected = selectedAudio?.id === audio.id;
+
+              return (
+                <button
+                  key={audio.id}
+                  type="button"
+                  className={`audio-track-row ${isSelected ? 'is-selected' : ''}`}
+                  onClick={() => void onSelectAudio(audio)}
+                  disabled={!audioSource}
+                >
+                  <span className="audio-track-row__icon" aria-hidden="true">
+                    <AudioWaveIcon />
+                  </span>
+                  <span className="audio-track-row__meta">
+                    <strong>{audio.title}</strong>
+                    <span>{formatAudioDuration(audio.durationS)}</span>
+                  </span>
+                  <span className="audio-track-row__action" aria-hidden="true" />
+                </button>
+              );
+            })
+          : null}
+
+        {hasAudioEntitlement && !isLoadingAudios && audios.length === 0 ? (
+          <p className="content-empty-state audio-library-message">
+            {audioStatusMessage || 'Todavía no hay audios publicados.'}
+          </p>
+        ) : null}
+        {hasAudioEntitlement && isLoadingAudios ? (
+          <p className="content-empty-state audio-library-message">Cargando audios...</p>
+        ) : null}
+      </div>
 
       <BottomNav current="contenido" onNavigate={onNavigate} />
     </section>
@@ -2968,7 +3036,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
       throw new Error('No se pudo validar la cuenta actual.');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/identity/login?useCookies=true`, {
+    const response = await fetch(`${API_BASE_URL}/api/identity/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3470,6 +3538,44 @@ function VideoIcon() {
     <SvgIcon viewBox="0 0 24 24">
       <path d="M4 6h11v12H4V6Z" />
       <path d="m15 10 5-3v10l-5-3" />
+    </SvgIcon>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="m9 5 10 7-10 7V5Z" />
+    </SvgIcon>
+  );
+}
+
+function LockIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+      <path d="M6 11h12v9H6v-9Z" />
+    </SvgIcon>
+  );
+}
+
+function HeadphonesIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <path d="M4 14h3v6H4v-6Z" />
+      <path d="M17 14h3v6h-3v-6Z" />
+    </SvgIcon>
+  );
+}
+
+function AudioWaveIcon() {
+  return (
+    <SvgIcon viewBox="0 0 24 24">
+      <path d="M6 14v-4" />
+      <path d="M10 17V7" />
+      <path d="M14 14v-4" />
+      <path d="M18 17V7" />
     </SvgIcon>
   );
 }
