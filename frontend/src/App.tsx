@@ -223,7 +223,7 @@ type ContentSection = {
 const contentSections: ContentSection[] = [
   {
     eyebrow: 'Cursos digitales',
-    title: 'FORMACIÓN EN VIDEO',
+    title: 'dede EN VIDEO',
     summary: 'Cursos que se desbloquean una vez que el usuario paga por cada producto.',
     items: [
       {
@@ -1673,7 +1673,7 @@ function ContenidoScreen({
 
       <section className="library-block library-block--video" aria-labelledby="video-library-title">
         <div className="library-block__header">
-          <h3 id="video-library-title">FORMACIÓN EN VIDEO</h3>
+          <h3 id="video-library-title">CURSOS DIGITALES</h3>
           <span>{videoItems.length} piezas</span>
         </div>
 
@@ -1699,7 +1699,7 @@ function ContenidoScreen({
       <section className="library-block library-block--audios" aria-labelledby="audio-library-title">
         <button type="button" className="library-block__header library-block__header--button" onClick={() => onNavigate('audios')}>
           <h3 id="audio-library-title">AUDIOS UNIVERSIDAD DEL HOMBRE</h3>
-          <span>Audios</span>
+          <span>1 pieza</span>
         </button>
 
         <button type="button" className="audio-library-preview" onClick={() => onNavigate('audios')}>
