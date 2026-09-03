@@ -36,6 +36,14 @@ export type MyEntitlementResponse = {
   features: string[];
 };
 
+export type ContentProduct = {
+  id: string;
+  title: string;
+  featureKey: string;
+  priceDisplay: string;
+  stripePriceId: string;
+};
+
 export async function checkApiConnection(): Promise<ApiStatus> {
   if (!API_BASE_URL) {
     return 'not-configured';
@@ -142,6 +150,21 @@ export async function getMyEntitlement(loginResponse?: Partial<LoginResponse> | 
   }
 
   return (await response.json()) as MyEntitlementResponse;
+}
+
+export async function getContentProducts() {
+  const response = await fetch(apiUrl('/api/content-products'), {
+    credentials: 'include',
+    headers: {
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getResponseErrorMessage(response));
+  }
+
+  return (await response.json()) as ContentProduct[];
 }
 
 export async function registerUser(email: string, password: string) {

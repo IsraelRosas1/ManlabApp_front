@@ -1237,6 +1237,15 @@ img {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.content-product-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ebook-library-card--content-product {
+  align-items: center;
+}
+
 .audio-library-screen {
   gap: 26px;
 }

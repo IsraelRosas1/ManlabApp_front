@@ -6,6 +6,7 @@ import {
   type AppNotification,
   type NotificationPreference,
   type NotificationPreferenceCreate,
+  type ContentProduct,
   type RetoDailyLog,
   type RetoDailyLogPatch,
   type RetoStreak,
@@ -16,6 +17,7 @@ import {
   createNotificationPreference,
   createRetoDailyLog,
   createSubscriptionCheckoutSession,
+  getContentProducts,
   upgradeSubscription,
   deleteNotificationPreference,
   deleteUserNotification,
@@ -221,79 +223,29 @@ type ContentSection = {
   items: ContentItem[];
 };
 
-type PurchasedCourse = {
-  id: string;
+type ContentGroupKey = 'cursodigital' | 'audiolibro' | 'ebook';
+
+type ContentCatalogSection = {
+  key: ContentGroupKey;
   title: string;
-  description: string;
-  href: string;
-  requiredEntitlement: string;
+  emptyMessage: string;
 };
 
-const contentSections: ContentSection[] = [
+const contentCatalogSections: ContentCatalogSection[] = [
   {
-    eyebrow: 'Cursos digitales',
-    title: 'dede EN VIDEO',
-    summary: 'Cursos que se desbloquean una vez que el usuario paga por cada producto.',
-    items: [
-      {
-        label: 'CURSO DIGITAL',
-        title: 'EL SEDUCTOR LEGENDARIO',
-        description: 'Curso en video sobre presencia, atracción y seducción estratégica.',
-        status: 'Se desbloquea al pagar',
-        ctaLabel: 'ACCEDER →',
-        locked: true,
-        requiredEntitlement: 'masterclass:seductor_legendario',
-      },
-      {
-        label: 'CURSO DIGITAL',
-        title: 'MAESTRÍA EN CONVENCIMIENTO',
-        description: 'Entrenamiento para persuadir, argumentar y comunicar con precisión.',
-        status: 'Se desbloquea al pagar',
-        ctaLabel: 'ACCEDER →',
-        locked: true,
-        requiredEntitlement: 'masterclass:maestria_convencimiento',
-      },
-      {
-        label: 'NIVEL: CURSO DIGITAL',
-        title: 'LOS PILARES DEL HOMBRE CHINGÓN',
-        description: 'Bloque de formación base para la disciplina, criterio y ejecución.',
-        status: 'Se desbloquea al pagar',
-        ctaLabel: 'ACCEDER',
-        locked: true,
-        requiredEntitlement: 'masterclass:pilares_hombre_chingon',
-      },
-    ],
+    key: 'cursodigital',
+    title: 'CURSOS DIGITALES',
+    emptyMessage: 'No hay cursos digitales disponibles por ahora.',
   },
   {
-    eyebrow: 'Audios',
-    title: 'Audios',
-    summary: 'Todos los audios que se van subiendo a la biblioteca de la app y se desbloquean con la suscripción activa.',
-    items: [],
+    key: 'audiolibro',
+    title: 'AUDIOBOOKS',
+    emptyMessage: 'No hay audiobooks disponibles por ahora.',
   },
   {
-    eyebrow: 'Libros digitales',
-    title: 'Ebooks técnicos',
-    summary: 'Lecturas técnicas y manuales pensados para consulta dentro del móvil.',
-    items: [
-      {
-        label: 'LIBROS DIGITALES',
-        title: 'Ebooks técnicos',
-        description: 'Archivos listos para lectura con enfoque táctico y práctico.',
-        status: 'Disponible en la biblioteca',
-        ctaLabel: 'PRÓXIMAMENTE',
-        locked: true,
-      },
-    ],
-  },
-];
-
-const purchasedCourses: PurchasedCourse[] = [
-  {
-    id: 'seductor-legendario',
-    title: 'EL SEDUCTOR LEGENDARIO',
-    description: 'Curso digital en video · 13 piezas',
-    href: '/courses/el-seductor-legendario.html',
-    requiredEntitlement: 'cursodigital:el-seductor-legendario',
+    key: 'ebook',
+    title: 'EBOOKS',
+    emptyMessage: 'No hay ebooks disponibles por ahora.',
   },
 ];
 
@@ -1689,11 +1641,111 @@ function ContenidoScreen({
   onNavigate: (screen: ScreenKey) => void;
 }) {
   const identity = getIdentity();
-  const videoItems = contentSections[0]?.items ?? [];
-  const ebookItem = contentSections[2]?.items[0];
-  const unlockedPurchasedCourses = purchasedCourses.filter((course) =>
-    hasEntitlement(identity, course.requiredEntitlement),
+  const [catalogProducts, setCatalogProducts] = useState<ContentProduct[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  const [catalogMessage, setCatalogMessage] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setIsLoadingCatalog(true);
+    setCatalogMessage('');
+
+    getContentProducts()
+      .then((products) => {
+        if (isMounted) {
+          setCatalogProducts(products);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setCatalogProducts([]);
+          setCatalogMessage(error instanceof Error ? error.message : 'No se pudo cargar el catálogo de contenido.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingCatalog(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getFeatureGroup = (featureKey: string): ContentGroupKey => {
+    const normalized = featureKey.trim().toLowerCase();
+    const prefix = normalized.includes(':') ? normalized.split(':')[0] : normalized;
+
+    if (prefix === 'audiolibro' || prefix === 'ebook' || prefix === 'cursodigital') {
+      return prefix;
+    }
+
+    return 'cursodigital';
+  };
+
+  const getPurchasedHref = (product: ContentProduct) => {
+    if (product.featureKey.toLowerCase() === 'cursodigital:el-seductor-legendario') {
+      return '/courses/el-seductor-legendario.html';
+    }
+
+    return '';
+  };
+
+  const purchasedProducts = catalogProducts.filter((product) => hasEntitlement(identity, product.featureKey));
+
+  const visibleProductsByGroup = contentCatalogSections.reduce<Record<ContentGroupKey, ContentProduct[]>>(
+    (accumulator, section) => {
+      accumulator[section.key] = catalogProducts.filter(
+        (product) => getFeatureGroup(product.featureKey) === section.key && !hasEntitlement(identity, product.featureKey),
+      );
+
+      return accumulator;
+    },
+    { cursodigital: [], audiolibro: [], ebook: [] },
   );
+
+  const renderCatalogCard = (product: ContentProduct, variant: 'catalog' | 'purchased') => {
+    const group = getFeatureGroup(product.featureKey);
+    const CardIcon = group === 'audiolibro' ? HeadphonesIcon : group === 'ebook' ? BookIcon : PlayIcon;
+    const purchasedHref = getPurchasedHref(product);
+
+    const body = (
+      <>
+        <span className="ebook-library-card__cover" aria-hidden="true">
+          <CardIcon />
+        </span>
+        <div>
+          <strong>{product.title}</strong>
+          <p>{variant === 'purchased' ? group.toUpperCase() : product.priceDisplay}</p>
+        </div>
+        <span className="ebook-library-card__badge">
+          {variant === 'purchased' ? (purchasedHref ? 'ABRIR' : 'COMPRADO') : product.priceDisplay}
+        </span>
+      </>
+    );
+
+    if (variant === 'purchased' && purchasedHref) {
+      return (
+        <a
+          key={product.id}
+          className="ebook-library-card ebook-library-card--link"
+          href={purchasedHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {body}
+        </a>
+      );
+    }
+
+    return (
+      <article key={product.id} className="ebook-library-card ebook-library-card--content-product">
+        {body}
+      </article>
+    );
+  };
 
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen content-library-screen">
@@ -1711,96 +1763,62 @@ function ContenidoScreen({
         </div>
       </div>
 
-      <section className="library-block library-block--video" aria-labelledby="video-library-title">
-        <div className="library-block__header">
-          <h3 id="video-library-title">CURSOS DIGITALES</h3>
-          <span>{videoItems.length} piezas</span>
-        </div>
+      {isLoadingCatalog ? <p className="content-empty-state audio-library-message">Cargando catálogo...</p> : null}
+      {catalogMessage ? <p className="content-empty-state audio-library-message">{catalogMessage}</p> : null}
 
-        <div className="video-shelf" aria-label="Formación en video">
-          {videoItems.map((item, index) => {
-            const isLocked = Boolean(item.locked || (item.requiredEntitlement && !hasEntitlement(identity, item.requiredEntitlement)));
+      {contentCatalogSections.map((section) => {
+        const sectionProducts = visibleProductsByGroup[section.key];
 
-            return (
-              <article key={item.title} className={`video-shelf-card ${isLocked ? 'is-locked' : ''}`}>
-                <span className="video-shelf-card__badge">
-                  {index === 0 ? '$29' : isLocked ? 'BLOQUEADO' : 'INCLUIDO'}
-                </span>
-                <div className="video-shelf-card__icon" aria-hidden="true">
-                  {isLocked && index > 1 ? <LockIcon /> : <PlayIcon />}
+        return (
+          <section key={section.key} className="library-block" aria-labelledby={`${section.key}-library-title`}>
+            <div className="library-block__header">
+              <h3 id={`${section.key}-library-title`}>{section.title}</h3>
+              <span>{sectionProducts.length} pieza{sectionProducts.length === 1 ? '' : 's'}</span>
+            </div>
+
+            {sectionProducts.length > 0 ? (
+              section.key === 'cursodigital' ? (
+                <div className="video-shelf" aria-label={section.title}>
+                  {sectionProducts.map((product) => (
+                    <article key={product.id} className="video-shelf-card">
+                      <span className="video-shelf-card__badge">{product.priceDisplay || 'DISPONIBLE'}</span>
+                      <div className="video-shelf-card__icon" aria-hidden="true">
+                        <PlayIcon />
+                      </div>
+                      <strong>{product.title}</strong>
+                    </article>
+                  ))}
                 </div>
-                <strong>{item.title}</strong>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="library-block library-block--audios" aria-labelledby="audio-library-title">
-        <button type="button" className="library-block__header library-block__header--button" onClick={() => onNavigate('audios')}>
-          <h3 id="audio-library-title">AUDIOS UNIVERSIDAD DEL HOMBRE</h3>
-          <span>1 pieza</span>
-        </button>
-
-        <button type="button" className="audio-library-preview" onClick={() => onNavigate('audios')}>
-          <span className="audio-library-preview__icon" aria-hidden="true">
-            <HeadphonesIcon />
-          </span>
-          <span>La biblioteca de audios de la Universidad del Hombre.</span>
-        </button>
-      </section>
-
-      <section className="library-block" aria-labelledby="ebook-library-title">
-        <div className="library-block__header">
-          <h3 id="ebook-library-title">EBOOKS TÉCNICOS</h3>
-          <span>1 pieza</span>
-        </div>
-
-        <article className="ebook-library-card">
-          <span className="ebook-library-card__cover" aria-hidden="true">
-            <BookIcon />
-          </span>
-          <div>
-            <strong>El Manual del Hierro</strong>
-            <p>Manual técnico · PDF</p>
-          </div>
-          <span className="ebook-library-card__badge">{ebookItem?.locked ? 'INCLUIDO' : 'DISPONIBLE'}</span>
-        </article>
-      </section>
+              ) : (
+                <div className="content-product-list" aria-label={section.title}>
+                  {sectionProducts.map((product) => renderCatalogCard(product, 'catalog'))}
+                </div>
+              )
+            ) : (
+              <p className="content-empty-state audio-library-message">{section.emptyMessage}</p>
+            )}
+          </section>
+        );
+      })}
 
       <section className="library-block" aria-labelledby="purchases-library-title">
         <div className="library-block__header">
           <h3 id="purchases-library-title">MIS COMPRAS</h3>
-          <span>{purchasedCourses.length} pieza</span>
+          <span>{purchasedProducts.length} pieza{purchasedProducts.length === 1 ? '' : 's'}</span>
         </div>
 
-        {unlockedPurchasedCourses.length > 0 ? (
-          unlockedPurchasedCourses.map((course) => (
-            <a
-              key={course.id}
-              className="ebook-library-card ebook-library-card--link"
-              href={course.href}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <span className="ebook-library-card__cover" aria-hidden="true">
-                <VideoIcon />
-              </span>
-              <div>
-                <strong>{course.title}</strong>
-                <p>{course.description}</p>
-              </div>
-              <span className="ebook-library-card__badge">ABRIR</span>
-            </a>
-          ))
+        {purchasedProducts.length > 0 ? (
+          <div className="content-product-list" aria-label="Mis compras">
+            {purchasedProducts.map((product) => renderCatalogCard(product, 'purchased'))}
+          </div>
         ) : (
           <article className="ebook-library-card ebook-library-card--locked" aria-live="polite">
             <span className="ebook-library-card__cover" aria-hidden="true">
-              <LockIcon />
+              <VideoIcon />
             </span>
             <div>
-              <strong>EL SEDUCTOR LEGENDARIO</strong>
-              <p>Compra requerida para desbloquear este curso.</p>
+              <strong>Mis compras</strong>
+              <p>Aquí aparecerán tus cursos, audiobooks y ebooks comprados.</p>
             </div>
             <span className="ebook-library-card__badge ebook-library-card__badge--locked">BLOQUEADO</span>
           </article>
