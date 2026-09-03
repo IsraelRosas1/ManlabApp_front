@@ -1801,6 +1801,22 @@ function ContenidoScreen({
         );
       })}
 
+      <section className="library-block library-block--audios" aria-labelledby="audios-library-title">
+        <button type="button" className="library-block__header library-block__header--button" onClick={() => onNavigate('audios')}>
+          <h3 id="audios-library-title">AUDIOS UNIVERSIDAD DEL HOMBRE</h3>
+          <span>CATÁLOGO COMPLETO</span>
+        </button>
+
+        <button type="button" className="audio-library-preview" onClick={() => onNavigate('audios')}>
+          <span className="audio-library-preview__icon" aria-hidden="true">
+            <HeadphonesIcon />
+          </span>
+          <span>
+            Entra a la biblioteca completa de audios y reproduce los capítulos desde el player con la barra de audio.
+          </span>
+        </button>
+      </section>
+
       <section className="library-block" aria-labelledby="purchases-library-title">
         <div className="library-block__header">
           <h3 id="purchases-library-title">MIS COMPRAS</h3>
