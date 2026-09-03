@@ -1175,6 +1175,22 @@ img {
   background: #12100f;
 }
 
+.ebook-library-card--link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.ebook-library-card--link:hover {
+  border-color: rgba(212, 168, 87, 0.42);
+  transform: translateY(-1px);
+}
+
+.ebook-library-card--locked {
+  opacity: 0.94;
+}
+
 .ebook-library-card__cover {
   width: 68px;
   height: 92px;
@@ -1214,6 +1230,11 @@ img {
   background: var(--oro);
   font-size: 0.68rem;
   font-weight: 900;
+}
+
+.ebook-library-card__badge--locked {
+  color: rgba(245, 240, 232, 0.84);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .audio-library-screen {

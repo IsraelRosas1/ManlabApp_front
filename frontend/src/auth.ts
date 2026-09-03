@@ -19,6 +19,7 @@ export type IdentityMe = {
   currentPeriodEnd: string;
   planCode: string;
   entitlements?: string[];
+  features?: string[];
   pushEnabled?: boolean;
 };
 
@@ -120,7 +121,10 @@ export function getEntitlements(identity?: IdentityMe | null): string[] {
   }
 
   const rawEntitlements = Array.isArray(identity.entitlements) ? identity.entitlements : [];
-  return rawEntitlements.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
+  const rawFeatures = Array.isArray(identity.features) ? identity.features : [];
+  return [...rawEntitlements, ...rawFeatures]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
 }
 
 export function hasEntitlement(identity: IdentityMe | null | undefined, entitlementCode: string) {

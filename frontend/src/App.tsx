@@ -23,6 +23,7 @@ import {
   getAudio,
   getAudios,
   getCurrentIdentityMe,
+  getMyEntitlement,
   getIdentityMe,
   getLatestAppNotifications,
   getLocalDateOffset,
@@ -220,6 +221,14 @@ type ContentSection = {
   items: ContentItem[];
 };
 
+type PurchasedCourse = {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  requiredEntitlement: string;
+};
+
 const contentSections: ContentSection[] = [
   {
     eyebrow: 'Cursos digitales',
@@ -275,6 +284,16 @@ const contentSections: ContentSection[] = [
         locked: true,
       },
     ],
+  },
+];
+
+const purchasedCourses: PurchasedCourse[] = [
+  {
+    id: 'seductor-legendario',
+    title: 'EL SEDUCTOR LEGENDARIO',
+    description: 'Curso digital en video · 13 piezas',
+    href: '/courses/el-seductor-legendario.html',
+    requiredEntitlement: 'cursodigital:el-seductor-legendario',
   },
 ];
 
@@ -667,28 +686,32 @@ export default function App() {
       }
 
       try {
-        const identity = await getCurrentIdentityMe();
+        const [identity, entitlement] = await Promise.all([getCurrentIdentityMe(), getMyEntitlement()]);
+        const identityWithFeatures = {
+          ...identity,
+          features: Array.isArray(entitlement.features) ? entitlement.features : [],
+        };
 
         if (!isMounted) {
           return;
         }
 
-        if (hasCanceledSubscription(identity)) {
-          updateAuthIdentity(identity);
+        if (hasCanceledSubscription(identityWithFeatures)) {
+          updateAuthIdentity(identityWithFeatures);
           if (screen !== 'perfil') {
             window.location.hash = '#perfil';
           }
           return;
         }
 
-        if (!hasActiveSubscription(identity)) {
+        if (!hasActiveSubscription(identityWithFeatures)) {
           setIsSubscriptionExpired(true);
           clearAuthSession();
           window.location.hash = '#login';
           return;
         }
 
-        updateAuthIdentity(identity);
+        updateAuthIdentity(identityWithFeatures);
       } catch {
         // Keep the user in the app on temporary network/API failures.
       }
@@ -892,13 +915,27 @@ function LoginScreen({
       }
 
       const identity = await getIdentityMe(loginResponse);
+      let entitlementFeatures: string[] = [];
 
-      if (!hasActiveSubscription(identity) && !hasCanceledSubscription(identity)) {
+      try {
+        const entitlement = await getMyEntitlement(loginResponse);
+        entitlementFeatures = Array.isArray(entitlement.features) ? entitlement.features : [];
+      } catch {
+        // Do not block login if entitlement endpoint has a transient failure.
+        entitlementFeatures = [];
+      }
+
+      const identityWithFeatures = {
+        ...identity,
+        features: entitlementFeatures,
+      };
+
+      if (!hasActiveSubscription(identityWithFeatures) && !hasCanceledSubscription(identityWithFeatures)) {
         clearAuthSession();
         throw new Error(SUBSCRIPTION_EXPIRED_MESSAGE);
       }
 
-      saveAuthSession(loginResponse, identity);
+      saveAuthSession(loginResponse, identityWithFeatures);
       onEnter();
     } catch (error) {
       setErrorMessage(
@@ -1654,6 +1691,9 @@ function ContenidoScreen({
   const identity = getIdentity();
   const videoItems = contentSections[0]?.items ?? [];
   const ebookItem = contentSections[2]?.items[0];
+  const unlockedPurchasedCourses = purchasedCourses.filter((course) =>
+    hasEntitlement(identity, course.requiredEntitlement),
+  );
 
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen content-library-screen">
@@ -1726,6 +1766,45 @@ function ContenidoScreen({
           </div>
           <span className="ebook-library-card__badge">{ebookItem?.locked ? 'INCLUIDO' : 'DISPONIBLE'}</span>
         </article>
+      </section>
+
+      <section className="library-block" aria-labelledby="purchases-library-title">
+        <div className="library-block__header">
+          <h3 id="purchases-library-title">MIS COMPRAS</h3>
+          <span>{purchasedCourses.length} pieza</span>
+        </div>
+
+        {unlockedPurchasedCourses.length > 0 ? (
+          unlockedPurchasedCourses.map((course) => (
+            <a
+              key={course.id}
+              className="ebook-library-card ebook-library-card--link"
+              href={course.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="ebook-library-card__cover" aria-hidden="true">
+                <VideoIcon />
+              </span>
+              <div>
+                <strong>{course.title}</strong>
+                <p>{course.description}</p>
+              </div>
+              <span className="ebook-library-card__badge">ABRIR</span>
+            </a>
+          ))
+        ) : (
+          <article className="ebook-library-card ebook-library-card--locked" aria-live="polite">
+            <span className="ebook-library-card__cover" aria-hidden="true">
+              <LockIcon />
+            </span>
+            <div>
+              <strong>EL SEDUCTOR LEGENDARIO</strong>
+              <p>Compra requerida para desbloquear este curso.</p>
+            </div>
+            <span className="ebook-library-card__badge ebook-library-card__badge--locked">BLOQUEADO</span>
+          </article>
+        )}
       </section>
 
       <p className="content-footer-note">

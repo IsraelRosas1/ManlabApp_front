@@ -29,6 +29,13 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, ''
 
 export type ApiStatus = 'checking' | 'connected' | 'unreachable' | 'not-configured';
 
+export type MyEntitlementResponse = {
+  estado: 'active' | 'past_due' | 'canceled' | 'none';
+  en_prueba: boolean;
+  prueba_termina: string | null;
+  features: string[];
+};
+
 export async function checkApiConnection(): Promise<ApiStatus> {
   if (!API_BASE_URL) {
     return 'not-configured';
@@ -113,6 +120,28 @@ export async function getCurrentIdentityMe() {
   }
 
   return (await response.json()) as IdentityMe;
+}
+
+export async function getMyEntitlement(loginResponse?: Partial<LoginResponse> | null) {
+  const headers: Record<string, string> = {};
+
+  if (loginResponse?.tokenType && loginResponse?.accessToken) {
+    headers.Authorization = `${loginResponse.tokenType} ${loginResponse.accessToken}`;
+  }
+
+  const response = await fetch(apiUrl('/api/me/entitlement'), {
+    credentials: 'include',
+    headers: {
+      ...getAuthHeader(),
+      ...headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo cargar el entitlement del usuario.');
+  }
+
+  return (await response.json()) as MyEntitlementResponse;
 }
 
 export async function registerUser(email: string, password: string) {
