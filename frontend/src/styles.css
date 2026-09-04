@@ -1358,6 +1358,49 @@ img {
   line-height: 1.5;
 }
 
+.access-gate-modal {
+  width: min(100%, 360px);
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(212, 168, 87, 0.5);
+  border-radius: 12px;
+  padding: 18px;
+  background: linear-gradient(180deg, #17120d 0%, #110f0d 100%);
+  box-shadow: var(--shadow);
+}
+
+.access-gate-modal__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.access-gate-modal__header h3 {
+  margin: 0;
+  color: var(--oro);
+  font-family: var(--font-impacto);
+  font-size: 1.45rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.access-gate-modal__header button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--oro);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.access-gate-modal p {
+  margin: 0;
+  color: rgba(245, 240, 232, 0.8);
+  line-height: 1.5;
+}
+
 .audio-library-screen {
   gap: 26px;
 }

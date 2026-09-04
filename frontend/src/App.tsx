@@ -561,6 +561,7 @@ function useScreen() {
 export default function App() {
   const { screen, navigate } = useScreen();
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+  const [lockedNavigationTarget, setLockedNavigationTarget] = useState<ScreenKey | null>(null);
   const [selectedAudio, setSelectedAudio] = useState<UserAudio | null>(null);
   const [isLoadingSelectedAudio, setIsLoadingSelectedAudio] = useState(false);
   const [audioStatusMessage, setAudioStatusMessage] = useState('');
@@ -568,6 +569,27 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
+
+  const handleNavigate = (next: ScreenKey) => {
+    const identity = getIdentity();
+
+    if (next === 'audios' && !hasEntitlement(identity, 'udh_audios')) {
+      setLockedNavigationTarget(next);
+      return;
+    }
+
+    if (next === 'reto' && !hasEntitlement(identity, 'reto')) {
+      setLockedNavigationTarget(next);
+      return;
+    }
+
+    navigate(next);
+  };
+
+  const handleOpenUpgradeSection = () => {
+    setLockedNavigationTarget(null);
+    window.location.hash = '#perfil?upgrade=1';
+  };
 
   const skipAudio = (seconds: number) => {
     const element = audioRef.current;
@@ -692,16 +714,16 @@ export default function App() {
     <div className="app-shell">
       <div className={`phone-frame phone-frame--${screen} ${selectedAudio && selectedAudioSource ? 'phone-frame--audio-open' : ''}`}>
         {screen === 'login' ? (
-          <LoginScreen onEnter={() => navigate('home')} onNavigate={navigate} />
+          <LoginScreen onEnter={() => handleNavigate('home')} onNavigate={handleNavigate} />
         ) : screen === 'home' ? (
-          <HomeScreen onNavigate={navigate} />
+          <HomeScreen onNavigate={handleNavigate} />
         ) : screen === 'contenido' ? (
           <ContenidoScreen
-            onNavigate={navigate}
+            onNavigate={handleNavigate}
           />
         ) : screen === 'audios' ? (
           <AudioLibraryScreen
-            onNavigate={navigate}
+            onNavigate={handleNavigate}
             selectedAudio={selectedAudio}
             setSelectedAudio={setSelectedAudio}
             audioStatusMessage={audioStatusMessage}
@@ -710,15 +732,15 @@ export default function App() {
             onSelectAudio={selectAudio}
           />
         ) : screen === 'reto' ? (
-          <RetoScreen onNavigate={navigate} />
+          <RetoScreen onNavigate={handleNavigate} />
         ) : screen === 'notifications' ? (
-          <NotificationsScreen onNavigate={navigate} />
+          <NotificationsScreen onNavigate={handleNavigate} />
         ) : screen === 'clon' ? (
-          <ClonScreen onNavigate={navigate} />
+          <ClonScreen onNavigate={handleNavigate} />
         ) : screen === 'perfil' ? (
-          <PerfilScreen onNavigate={navigate} />
+          <PerfilScreen onNavigate={handleNavigate} />
         ) : (
-          <VeredictoScreen onBack={() => navigate('reto')} />
+          <VeredictoScreen onBack={() => handleNavigate('reto')} />
         )}
       </div>
 
@@ -767,6 +789,38 @@ export default function App() {
       ) : null}
 
       {isSubscriptionExpired ? <SubscriptionExpiredModal onReturnToLogin={() => setIsSubscriptionExpired(false)} /> : null}
+
+      {lockedNavigationTarget ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setLockedNavigationTarget(null)}>
+          <div
+            className="access-gate-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-gate-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="access-gate-modal__header">
+              <h3 id="access-gate-title">Acceso restringido</h3>
+              <button type="button" aria-label="Cerrar" onClick={() => setLockedNavigationTarget(null)}>
+                ×
+              </button>
+            </div>
+            <p>Necesitas la subscripcion completa de la app para acceder</p>
+            <ShellButton
+              variant="primary"
+              fullWidth
+              onClick={handleOpenUpgradeSection}
+              style={{
+                background: 'linear-gradient(180deg, #39d98a 0%, #1fae60 100%)',
+                color: '#071b10',
+                boxShadow: '0 10px 22px rgba(57, 217, 138, 0.18)',
+              }}
+            >
+              MEJORAR SUBSCRIPCION
+            </ShellButton>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -3091,6 +3145,7 @@ const legalDocuments: Record<LegalDocumentKey, { title: string; body: string }> 
 
 function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void }) {
   const identity = getIdentity();
+  const billingCardRef = useRef<HTMLDivElement | null>(null);
   const [streak, setStreak] = useState<RetoStreak>({ currentStreak: 0, longestStreak: 0 });
   const [recentLogs, setRecentLogs] = useState<RetoDailyLog[]>([]);
   const [pushStatus, setPushStatus] = useState('');
@@ -3303,6 +3358,24 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
     };
   }, []);
 
+  useEffect(() => {
+    const hashValue = window.location.hash.replace('#', '');
+    const [route, rawQuery] = hashValue.split('?');
+
+    if (route !== 'perfil') {
+      return;
+    }
+
+    const query = new URLSearchParams(rawQuery || '');
+    if (query.get('upgrade') !== '1') {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      billingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+  }, []);
+
   return (
     <section className="screen screen--stacked screen--tight-bottom profile-screen">
       <header className="profile-hero">
@@ -3364,7 +3437,7 @@ function PerfilScreen({ onNavigate }: { onNavigate: (screen: ScreenKey) => void 
         </label>
       </div>
 
-      <div className="profile-card profile-card--billing">
+      <div ref={billingCardRef} className="profile-card profile-card--billing">
         <span className="profile-card__eyebrow">Suscripción</span>
         <p>Administra pagos, método de cobro, facturas y cancelación desde Stripe.</p>
         <div className="profile-billing-actions">
