@@ -1644,6 +1644,7 @@ function ContenidoScreen({
   const [catalogProducts, setCatalogProducts] = useState<ContentProduct[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [catalogMessage, setCatalogMessage] = useState('');
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<ContentProduct | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -1747,6 +1748,29 @@ function ContenidoScreen({
     );
   };
 
+  const renderScrollableCatalogCard = (product: ContentProduct, sectionKey: ContentGroupKey) => {
+    const CardIcon = sectionKey === 'audiolibro' ? HeadphonesIcon : sectionKey === 'ebook' ? BookIcon : PlayIcon;
+    const isCompact = sectionKey !== 'cursodigital';
+
+    return (
+      <button
+        key={product.id}
+        type="button"
+        className={`video-shelf-card video-shelf-card--button${isCompact ? ' video-shelf-card--compact' : ''}`}
+        onClick={() => setSelectedCatalogProduct(product)}
+        aria-label={`${product.title}, ${product.priceDisplay}`}
+      >
+        <span className="video-shelf-card__media" aria-hidden="true">
+          <span className="video-shelf-card__badge">{product.priceDisplay || 'DISPONIBLE'}</span>
+          <span className="video-shelf-card__icon">
+            <CardIcon />
+          </span>
+        </span>
+        <strong>{product.title}</strong>
+      </button>
+    );
+  };
+
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen content-library-screen">
       <div className="content-page-heading">
@@ -1779,19 +1803,11 @@ function ContenidoScreen({
             {sectionProducts.length > 0 ? (
               section.key === 'cursodigital' ? (
                 <div className="video-shelf" aria-label={section.title}>
-                  {sectionProducts.map((product) => (
-                    <article key={product.id} className="video-shelf-card">
-                      <span className="video-shelf-card__badge">{product.priceDisplay || 'DISPONIBLE'}</span>
-                      <div className="video-shelf-card__icon" aria-hidden="true">
-                        <PlayIcon />
-                      </div>
-                      <strong>{product.title}</strong>
-                    </article>
-                  ))}
+                  {sectionProducts.map((product) => renderScrollableCatalogCard(product, section.key))}
                 </div>
               ) : (
-                <div className="content-product-list" aria-label={section.title}>
-                  {sectionProducts.map((product) => renderCatalogCard(product, 'catalog'))}
+                <div className="video-shelf video-shelf--compact" aria-label={section.title}>
+                  {sectionProducts.map((product) => renderScrollableCatalogCard(product, section.key))}
                 </div>
               )
             ) : (
@@ -1846,6 +1862,27 @@ function ContenidoScreen({
       </p>
 
       <BottomNav current="contenido" onNavigate={onNavigate} />
+
+      {selectedCatalogProduct ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedCatalogProduct(null)}>
+          <div
+            className="content-product-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="content-product-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="content-product-modal__header">
+              <h3 id="content-product-modal-title">{selectedCatalogProduct.title}</h3>
+              <button type="button" aria-label="Cerrar" onClick={() => setSelectedCatalogProduct(null)}>
+                ×
+              </button>
+            </div>
+            <p className="content-product-modal__price">{selectedCatalogProduct.priceDisplay}</p>
+            <p>Compra el producto completo en manlabproject.com</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
