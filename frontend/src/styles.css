@@ -2877,6 +2877,18 @@ img {
   border: 0;
 }
 
+.purchased-content-screen {
+  gap: 18px;
+}
+
+.purchased-content-frame {
+  width: 100%;
+  min-height: 640px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .profile-hero {
   display: flex;
   align-items: center;

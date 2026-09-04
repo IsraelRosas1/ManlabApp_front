@@ -63,6 +63,7 @@ type ScreenKey =
   | 'login'
   | 'home'
   | 'contenido'
+  | 'compras'
   | 'audios'
   | 'reto'
   | 'notifications'
@@ -70,11 +71,12 @@ type ScreenKey =
   | 'perfil'
   | 'veredicto';
 
-type BottomNavKey = Exclude<ScreenKey, 'login' | 'audios' | 'veredicto'>;
+type BottomNavKey = Exclude<ScreenKey, 'login' | 'audios' | 'veredicto' | 'compras'>;
 
 const protectedScreens: ScreenKey[] = [
   'home',
   'contenido',
+  'compras',
   'audios',
   'reto',
   'notifications',
@@ -279,6 +281,20 @@ const fallbackHomeNotifications: AppNotification[] = [
   },
 ];
 
+function getPurchasedProductHref(product: ContentProduct) {
+  const configuredHref = product.contentUrl?.trim();
+
+  if (configuredHref) {
+    return configuredHref;
+  }
+
+  if (product.featureKey.toLowerCase() === 'cursodigital:el-seductor-legendario') {
+    return '/courses/el-seductor-legendario.html';
+  }
+
+  return '';
+}
+
 function isStandalonePwa() {
   if (typeof window === 'undefined') {
     return false;
@@ -475,7 +491,7 @@ function getInitialScreen(): ScreenKey {
   const hashValue = window.location.hash.replace('#', '');
   const hashRoute = hashValue.split('?')[0] as ScreenKey;
 
-  if (['login', 'home', 'contenido', 'audios', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
+  if (['login', 'home', 'contenido', 'compras', 'audios', 'reto', 'notifications', 'clon', 'perfil', 'veredicto'].includes(hashRoute)) {
     const identity = getIdentity();
 
     if (hasCanceledSubscription(identity) && hashRoute !== 'perfil') {
@@ -528,6 +544,7 @@ function useScreen() {
       login: 'ManLab · Acceso',
       home: 'ManLab · Home',
       contenido: 'ManLab · Contenido',
+      compras: 'ManLab · Mis Compras',
       audios: 'ManLab · Audios',
       reto: 'ManLab · Reto',
       notifications: 'ManLab · Avisos',
@@ -562,6 +579,7 @@ export default function App() {
   const { screen, navigate } = useScreen();
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
   const [lockedNavigationTarget, setLockedNavigationTarget] = useState<ScreenKey | null>(null);
+  const [selectedPurchasedProduct, setSelectedPurchasedProduct] = useState<ContentProduct | null>(null);
   const [selectedAudio, setSelectedAudio] = useState<UserAudio | null>(null);
   const [isLoadingSelectedAudio, setIsLoadingSelectedAudio] = useState(false);
   const [audioStatusMessage, setAudioStatusMessage] = useState('');
@@ -589,6 +607,11 @@ export default function App() {
   const handleOpenUpgradeSection = () => {
     setLockedNavigationTarget(null);
     window.location.hash = '#perfil?upgrade=1';
+  };
+
+  const handleOpenPurchasedProduct = (product: ContentProduct) => {
+    setSelectedPurchasedProduct(product);
+    window.location.hash = '#compras';
   };
 
   const skipAudio = (seconds: number) => {
@@ -719,6 +742,13 @@ export default function App() {
           <HomeScreen onNavigate={handleNavigate} />
         ) : screen === 'contenido' ? (
           <ContenidoScreen
+            onNavigate={handleNavigate}
+            onOpenPurchasedProduct={handleOpenPurchasedProduct}
+          />
+        ) : screen === 'compras' ? (
+          <PurchasedContentScreen
+            product={selectedPurchasedProduct}
+            onBack={() => handleNavigate('contenido')}
             onNavigate={handleNavigate}
           />
         ) : screen === 'audios' ? (
@@ -1691,8 +1721,10 @@ function QuickAccessButton({ label, icon, onClick }: { label: string; icon: Reac
 
 function ContenidoScreen({
   onNavigate,
+  onOpenPurchasedProduct,
 }: {
   onNavigate: (screen: ScreenKey) => void;
+  onOpenPurchasedProduct: (product: ContentProduct) => void;
 }) {
   const identity = getIdentity();
   const [catalogProducts, setCatalogProducts] = useState<ContentProduct[]>([]);
@@ -1740,14 +1772,6 @@ function ContenidoScreen({
     return 'cursodigital';
   };
 
-  const getPurchasedHref = (product: ContentProduct) => {
-    if (product.featureKey.toLowerCase() === 'cursodigital:el-seductor-legendario') {
-      return '/courses/el-seductor-legendario.html';
-    }
-
-    return '';
-  };
-
   const purchasedProducts = catalogProducts.filter((product) => hasEntitlement(identity, product.featureKey));
 
   const visibleProductsByGroup = contentCatalogSections.reduce<Record<ContentGroupKey, ContentProduct[]>>(
@@ -1760,47 +1784,6 @@ function ContenidoScreen({
     },
     { cursodigital: [], audiolibro: [], ebook: [] },
   );
-
-  const renderCatalogCard = (product: ContentProduct, variant: 'catalog' | 'purchased') => {
-    const group = getFeatureGroup(product.featureKey);
-    const CardIcon = group === 'audiolibro' ? HeadphonesIcon : group === 'ebook' ? BookIcon : PlayIcon;
-    const purchasedHref = getPurchasedHref(product);
-
-    const body = (
-      <>
-        <span className="ebook-library-card__cover" aria-hidden="true">
-          <CardIcon />
-        </span>
-        <div>
-          <strong>{product.title}</strong>
-          <p>{variant === 'purchased' ? group.toUpperCase() : product.priceDisplay}</p>
-        </div>
-        <span className="ebook-library-card__badge">
-          {variant === 'purchased' ? (purchasedHref ? 'ABRIR' : 'COMPRADO') : product.priceDisplay}
-        </span>
-      </>
-    );
-
-    if (variant === 'purchased' && purchasedHref) {
-      return (
-        <a
-          key={product.id}
-          className="ebook-library-card ebook-library-card--link"
-          href={purchasedHref}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {body}
-        </a>
-      );
-    }
-
-    return (
-      <article key={product.id} className="ebook-library-card ebook-library-card--content-product">
-        {body}
-      </article>
-    );
-  };
 
   const renderScrollableCatalogCard = (product: ContentProduct, sectionKey: ContentGroupKey) => {
     const CardIcon = sectionKey === 'audiolibro' ? HeadphonesIcon : sectionKey === 'ebook' ? BookIcon : PlayIcon;
@@ -1817,6 +1800,30 @@ function ContenidoScreen({
         <span className="video-shelf-card__media" aria-hidden="true">
           {product.imageUrl ? <img className="video-shelf-card__image" src={product.imageUrl} alt="" loading="lazy" /> : null}
           <span className="video-shelf-card__badge">{product.priceDisplay || 'DISPONIBLE'}</span>
+          <span className="video-shelf-card__icon">
+            <CardIcon />
+          </span>
+        </span>
+        <strong>{product.title}</strong>
+      </button>
+    );
+  };
+
+  const renderPurchasedCatalogCard = (product: ContentProduct) => {
+    const group = getFeatureGroup(product.featureKey);
+    const CardIcon = group === 'audiolibro' ? HeadphonesIcon : group === 'ebook' ? BookIcon : PlayIcon;
+
+    return (
+      <button
+        key={product.id}
+        type="button"
+        className="video-shelf-card video-shelf-card--button video-shelf-card--compact"
+        onClick={() => onOpenPurchasedProduct(product)}
+        aria-label={`${product.title}, comprado`}
+      >
+        <span className="video-shelf-card__media" aria-hidden="true">
+          {product.imageUrl ? <img className="video-shelf-card__image" src={product.imageUrl} alt="" loading="lazy" /> : null}
+          <span className="video-shelf-card__badge">COMPRADO</span>
           <span className="video-shelf-card__icon">
             <CardIcon />
           </span>
@@ -1895,8 +1902,8 @@ function ContenidoScreen({
         </div>
 
         {purchasedProducts.length > 0 ? (
-          <div className="content-product-list" aria-label="Mis compras">
-            {purchasedProducts.map((product) => renderCatalogCard(product, 'purchased'))}
+          <div className="video-shelf video-shelf--compact" aria-label="Mis compras">
+            {purchasedProducts.map((product) => renderPurchasedCatalogCard(product))}
           </div>
         ) : (
           <article className="ebook-library-card ebook-library-card--locked" aria-live="polite">
@@ -1938,6 +1945,65 @@ function ContenidoScreen({
           </div>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function PurchasedContentScreen({
+  product,
+  onBack,
+  onNavigate,
+}: {
+  product: ContentProduct | null;
+  onBack: () => void;
+  onNavigate: (screen: ScreenKey) => void;
+}) {
+  if (!product) {
+    return (
+      <section className="screen screen--stacked screen--tight-bottom content-screen purchased-content-screen">
+        <button type="button" className="back-button" onClick={onBack} aria-label="Volver a contenido">
+          <ArrowLeftIcon />
+          <span>CONTENIDO</span>
+        </button>
+        <p className="content-empty-state">Selecciona un producto comprado desde MIS COMPRAS para verlo aquí.</p>
+        <BottomNav current="contenido" onNavigate={onNavigate} />
+      </section>
+    );
+  }
+
+  const contentHref = getPurchasedProductHref(product);
+
+  return (
+    <section className="screen screen--stacked screen--tight-bottom content-screen purchased-content-screen">
+      <div className="content-page-heading">
+        <button type="button" className="back-button" onClick={onBack} aria-label="Volver a contenido">
+          <ArrowLeftIcon />
+          <span>CONTENIDO</span>
+        </button>
+
+        <div className="content-title-row">
+          <div>
+            <h2>MIS COMPRAS</h2>
+            <p>{product.title}</p>
+          </div>
+        </div>
+      </div>
+
+      {contentHref ? (
+        <iframe
+          title={`Contenido comprado ${product.title}`}
+          src={contentHref}
+          className="purchased-content-frame"
+        />
+      ) : (
+        <article className="audio-player-panel">
+          <span>Contenido comprado</span>
+          <strong>{product.title}</strong>
+          <p>Este producto ya es tuyo. En cuanto se publique su visor interno aparecera en esta seccion.</p>
+        </article>
+      )}
+
+      <BottomNav current="contenido" onNavigate={onNavigate} />
     </section>
   );
 }
