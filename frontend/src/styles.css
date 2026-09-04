@@ -1267,6 +1267,7 @@ img {
 .audio-category-heading {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 4px;
   padding-bottom: 8px;
@@ -1283,10 +1284,52 @@ img {
   margin: 0;
   color: var(--oro);
   font-family: var(--font-cuerpo);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 500;
-  letter-spacing: 0.38em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.audio-category-select-label {
+  margin: 0;
+  color: rgba(245, 240, 232, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.audio-category-control {
+  margin-left: auto;
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  width: 132px;
+  flex: 0 0 132px;
+}
+
+.audio-category-select {
+  width: 132px;
+  min-height: 40px;
+  border: 1px solid rgba(245, 240, 232, 0.14);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #000;
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-category-select:disabled {
+  opacity: 0.55;
+}
+
+.audio-category-select option {
+  background: #000;
+  color: #fff;
 }
 
 .audio-track-list {

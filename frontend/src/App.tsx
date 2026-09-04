@@ -1937,7 +1937,21 @@ function AudioLibraryScreen({
     setSelectedAudio,
     setAudioStatusMessage,
   });
+  const [selectedAudioCategory, setSelectedAudioCategory] = useState('Todas');
   const selectedAudioSource = selectedAudio ? getAudioSource(selectedAudio) : '';
+  const audioCategories = Array.from(
+    new Set(audios.map((audio) => (audio.category || 'Sin categoria').trim() || 'Sin categoria')),
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  const visibleAudios =
+    selectedAudioCategory === 'Todas'
+      ? audios
+      : audios.filter((audio) => ((audio.category || 'Sin categoria').trim() || 'Sin categoria') === selectedAudioCategory);
+
+  useEffect(() => {
+    if (selectedAudioCategory !== 'Todas' && !audioCategories.includes(selectedAudioCategory)) {
+      setSelectedAudioCategory('Todas');
+    }
+  }, [audioCategories, selectedAudioCategory]);
 
   return (
     <section className="screen screen--stacked screen--tight-bottom content-screen audio-library-screen">
@@ -1961,7 +1975,26 @@ function AudioLibraryScreen({
 
       <div className="audio-category-heading">
         <span />
-        <h3>CÍRCULO SOCIAL</h3>
+        <h3>CATEGORIA</h3>
+        <div className="audio-category-control">
+          <label className="audio-category-select-label" htmlFor="audio-category-select">
+            Filtrar por categoria
+          </label>
+          <select
+            id="audio-category-select"
+            className="audio-category-select"
+            value={selectedAudioCategory}
+            onChange={(event) => setSelectedAudioCategory(event.target.value)}
+            disabled={!hasAudioEntitlement || isLoadingAudios}
+          >
+            <option value="Todas">Todas</option>
+            {audioCategories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="audio-track-list">
@@ -1989,7 +2022,7 @@ function AudioLibraryScreen({
         ) : null}
 
         {hasAudioEntitlement
-          ? audios.map((audio) => {
+          ? visibleAudios.map((audio) => {
               const audioSource = getAudioSource(audio);
               const isSelected = selectedAudio?.id === audio.id;
 
@@ -2014,9 +2047,9 @@ function AudioLibraryScreen({
             })
           : null}
 
-        {hasAudioEntitlement && !isLoadingAudios && audios.length === 0 ? (
+        {hasAudioEntitlement && !isLoadingAudios && visibleAudios.length === 0 ? (
           <p className="content-empty-state audio-library-message">
-            {audioStatusMessage || 'Todavía no hay audios publicados.'}
+            {audioStatusMessage || 'No hay audios en la categoria seleccionada.'}
           </p>
         ) : null}
         {hasAudioEntitlement && isLoadingAudios ? (
