@@ -42,6 +42,7 @@ export type ContentProduct = {
   featureKey: string;
   priceDisplay: string;
   stripePriceId: string;
+  imageUrl?: string;
 };
 
 export async function checkApiConnection(): Promise<ApiStatus> {

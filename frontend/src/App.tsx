@@ -1761,6 +1761,7 @@ function ContenidoScreen({
         aria-label={`${product.title}, ${product.priceDisplay}`}
       >
         <span className="video-shelf-card__media" aria-hidden="true">
+          {product.imageUrl ? <img className="video-shelf-card__image" src={product.imageUrl} alt="" loading="lazy" /> : null}
           <span className="video-shelf-card__badge">{product.priceDisplay || 'DISPONIBLE'}</span>
           <span className="video-shelf-card__icon">
             <CardIcon />

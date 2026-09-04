@@ -1083,12 +1083,24 @@ img {
 .video-shelf-card__media {
   position: relative;
   grid-row: 1;
+  width: 100%;
+  height: 100%;
   min-height: 200px;
   border: 1px solid rgba(245, 240, 232, 0.18);
   border-radius: 8px;
   background: linear-gradient(180deg, #22170f 0%, #15100d 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   overflow: hidden;
+}
+
+.video-shelf-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
 }
 
 .video-shelf-card--compact {
@@ -1099,6 +1111,16 @@ img {
 .video-shelf-card--compact .video-shelf-card__media {
   min-height: 152px;
   background: linear-gradient(180deg, #21160f 0%, #17110d 100%);
+}
+
+.video-shelf-card__image + .video-shelf-card__badge {
+  background: rgba(12, 12, 12, 0.72);
+  color: var(--oro);
+}
+
+.video-shelf-card__image + .video-shelf-card__badge + .video-shelf-card__icon {
+  color: rgba(245, 240, 232, 0.92);
+  filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.6));
 }
 
 .video-shelf-card__badge {
