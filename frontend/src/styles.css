@@ -1197,30 +1197,39 @@ img {
   width: 100%;
   min-height: 104px;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 60px minmax(0, 1fr);
   align-items: center;
   gap: 18px;
   padding: 18px 22px;
-  border: 1px dashed rgba(245, 240, 232, 0.16);
+  border: 1px solid rgba(212, 168, 87, 0.36);
   border-radius: 10px;
-  color: rgba(245, 240, 232, 0.42);
-  background: rgba(255, 255, 255, 0.01);
+  color: rgba(245, 240, 232, 0.86);
+  background: linear-gradient(135deg, rgba(212, 168, 87, 0.24) 0%, rgba(212, 168, 87, 0.14) 38%, rgba(245, 240, 232, 0.1) 100%);
+  box-shadow: 0 12px 24px rgba(212, 168, 87, 0.12);
   text-align: left;
   cursor: pointer;
 }
 
-.audio-library-preview__icon {
-  color: rgba(245, 240, 232, 0.24);
+.audio-library-preview__cover {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(245, 240, 232, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24, 24, 24, 0.62), rgba(12, 12, 12, 0.8));
 }
 
-.audio-library-preview__icon svg {
-  width: 34px;
-  height: 34px;
+.audio-library-preview__cover img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
 }
 
 .audio-library-preview > span:last-child {
   font-size: 0.95rem;
   line-height: 1.55;
+  color: rgba(245, 240, 232, 0.88);
 }
 
 .ebook-library-card {

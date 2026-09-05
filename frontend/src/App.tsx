@@ -1886,8 +1886,8 @@ function ContenidoScreen({
         </button>
 
         <button type="button" className="audio-library-preview" onClick={() => onNavigate('audios')}>
-          <span className="audio-library-preview__icon" aria-hidden="true">
-            <HeadphonesIcon />
+          <span className="audio-library-preview__cover" aria-hidden="true">
+            <img src="/brand/manlab_emblema_blanco.svg" alt="" loading="lazy" />
           </span>
           <span>
             Entra a la biblioteca completa de audios y reproduce los capítulos desde el player con la barra de audio.
